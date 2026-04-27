@@ -501,6 +501,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
+                
+                // 设置为false:避免内容被强制拉伸到整页高度，导致顶部出现空白
                 isFillViewport = false
                 overScrollMode = OVER_SCROLL_NEVER
             }
