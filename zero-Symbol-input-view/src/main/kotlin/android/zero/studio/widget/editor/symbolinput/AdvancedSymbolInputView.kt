@@ -81,9 +81,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                     lastSavedPageIndex = position
                     SymbolDataManager.setLastPageIndex(context, position)
                 }
-                if (!uiSettings.uniformGroupHeight) {
-                    recalculateHeights()
-                }
+                recalculateHeights()
             }
         })
 
@@ -260,13 +258,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
     private fun recalculateHeights() {
         collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + (20 * resources.displayMetrics.density).roundToInt()
-        val baseExpanded = (220 * resources.displayMetrics.density).roundToInt()
-        expandedHeightPx = if (uiSettings.uniformGroupHeight) {
-            groups.maxOfOrNull { calculateExpandedHeightForGroup(it) }?.coerceAtLeast(baseExpanded) ?: baseExpanded
-        } else {
-            val current = groups.getOrNull(viewPager.currentItem)
-            (current?.let(::calculateExpandedHeightForGroup) ?: baseExpanded).coerceAtLeast(baseExpanded)
-        }
+        val minExpanded = collapsedHeightPx + rowHeightPx
+        val current = groups.getOrNull(viewPager.currentItem)
+        expandedHeightPx = (current?.let(::calculateExpandedHeightForGroup) ?: minExpanded).coerceAtLeast(minExpanded)
         val currentHeight = viewPager.layoutParams.height
         updatePagerHeight(currentHeight.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
@@ -275,7 +269,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
         val rows = (group.items.size + cols - 1) / cols
         val itemHeight = (44 * resources.displayMetrics.density).roundToInt()
-        val verticalPadding = (20 * resources.displayMetrics.density).roundToInt()
+        val verticalPadding = (12 * resources.displayMetrics.density).roundToInt()
         return (rows.coerceAtLeast(2) * itemHeight) + verticalPadding + fullTabHeightPx
     }
 
