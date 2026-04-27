@@ -52,7 +52,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     private val itemHeightPx by lazy { (44 * resources.displayMetrics.density).roundToInt() }
     private var fullTabHeightPx = (44 * resources.displayMetrics.density).roundToInt()
     private val collapsedExtraPaddingPx by lazy { (20 * resources.displayMetrics.density).roundToInt() }
-    private val gridVerticalPaddingPx by lazy { (12 * resources.displayMetrics.density).roundToInt() }
+    private val gridTopPaddingPx by lazy { (2 * resources.displayMetrics.density).roundToInt() }
+    private val gridBottomPaddingPx by lazy { (8 * resources.displayMetrics.density).roundToInt() }
     private var collapsedHeightPx = rowHeightPx * 2 + collapsedExtraPaddingPx
     private var expandedHeightPx = (220 * resources.displayMetrics.density).roundToInt()
     private val touchSlop by lazy { ViewConfiguration.get(context).scaledTouchSlop }
@@ -289,7 +290,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         )
         expandedHeightCache[key]?.let { return it }
         val rows = (group.items.size + cols - 1) / cols
-        return ((rows.coerceAtLeast(2) * itemHeightPx) + gridVerticalPaddingPx)
+        return ((rows.coerceAtLeast(2) * itemHeightPx) + gridTopPaddingPx + gridBottomPaddingPx)
             .also { expandedHeightCache[key] = it }
     }
 
@@ -428,8 +429,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                     Gravity.BOTTOM
                 )
                 columnCount = group.items.size.coerceAtMost(uiSettings.symbolsPerRow.coerceIn(1, 20)).coerceAtLeast(1)
-                val padding = (6 * resources.displayMetrics.density).roundToInt()
-                setPadding(padding, padding, padding, padding)
+                val horizontalPadding = (6 * resources.displayMetrics.density).roundToInt()
+                setPadding(horizontalPadding, gridTopPaddingPx, horizontalPadding, gridBottomPaddingPx)
             }
 
             for (item in group.items) {
