@@ -501,7 +501,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                isFillViewport = true
+                isFillViewport = false
                 overScrollMode = OVER_SCROLL_NEVER
             }
 

@@ -26,8 +26,6 @@ object SymbolDefaults {
                     SymbolItem(0, "//", "//"),
                     SymbolItem(0, ":", ":"),
                     SymbolItem(0, ";", ";"),
-                    SymbolItem(0, ":", ":"),
-                    SymbolItem(0, ";", ";"),
                     SymbolItem(21, "↓", null, 24, null),
                     SymbolItem(0, "#", "#"),
                     SymbolItem(0, "+", "+"),
