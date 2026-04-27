@@ -26,6 +26,12 @@ import com.google.android.material.tabs.TabLayout
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlin.math.roundToInt
 
+/**
+ * AdvancedSymbolInputView 的核心实现。
+ *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
+ */
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -67,6 +73,12 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     private var dotTabListenerAttached = false
     private val expandedHeightCache = mutableMapOf<ExpandedHeightKey, Int>()
 
+    /**
+     * ExpandedHeightKey 的核心实现。
+     *
+     * @author android_zero
+     * @github msmt2018/zero-Symbol-input-view
+     */
     private data class ExpandedHeightKey(
         val pageIndex: Int,
         val itemCount: Int,
@@ -90,6 +102,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         tabLayout.setupWithViewPager(viewPager)
         ensureDotTabSelectionListener()
         viewPager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
+            /**
+             * 执行 onPageSelected 方法。
+             */
             override fun onPageSelected(position: Int) {
                 if (uiSettings.rememberLastPage && lastSavedPageIndex != position) {
                     lastSavedPageIndex = position
@@ -111,15 +126,24 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         // Do nothing. 我们现在依靠自己的手势和 RelativeLayout 机制。
     }
 
+    /**
+     * 执行 onHostResume 方法。
+     */
     fun onHostResume() {
         val shouldExpand = uiSettings.rememberExpanded && SymbolDataManager.getLastExpanded(context)
         animateToHeight(if (shouldExpand) expandedHeightPx else collapsedHeightPx)
     }
 
+    /**
+     * 执行 bindEditor 方法。
+     */
     fun bindEditor(editor: CodeEditor) {
         this.editor = editor
     }
 
+    /**
+     * 执行 refreshData 方法。
+     */
     fun refreshData() {
         uiSettings = SymbolDataManager.getUiSettings(context)
         val newData = SymbolDataManager.loadData(context)
@@ -146,6 +170,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         tabLayout.post { applyIndicatorStyle() }
     }
 
+    /**
+     * 执行 onAttachedToWindow 方法。
+     */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         context.getSharedPreferences("advanced_symbol_prefs", Context.MODE_PRIVATE)
@@ -153,12 +180,18 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         applyIndicatorStyle()
     }
 
+    /**
+     * 执行 onDetachedFromWindow 方法。
+     */
     override fun onDetachedFromWindow() {
         context.getSharedPreferences("advanced_symbol_prefs", Context.MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
         super.onDetachedFromWindow()
     }
 
+    /**
+     * 执行 onInterceptTouchEvent 方法。
+     */
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -186,6 +219,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     @SuppressLint("ClickableViewAccessibility")
+    /**
+     * 执行 onTouchEvent 方法。
+     */
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -222,6 +258,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
+    /**
+     * 执行 animateToHeight 方法。
+     */
     private fun animateToHeight(targetHeight: Int) {
         val currentHeight = viewPager.layoutParams.height.coerceAtLeast(collapsedHeightPx)
         if (currentHeight == targetHeight) return
@@ -235,6 +274,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 执行 updatePagerHeight 方法。
+     */
     private fun updatePagerHeight(height: Int) {
         val clamped = height.coerceIn(collapsedHeightPx, expandedHeightPx)
         val params = viewPager.layoutParams
@@ -247,6 +289,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         applyTabRowByFraction(fraction)
     }
 
+    /**
+     * 执行 applyTabRowByFraction 方法。
+     */
     private fun applyTabRowByFraction(fraction: Float) {
         val clamped = fraction.coerceIn(0f, 1f)
         // Material 风格下采用“延迟开始、提前完成”的跟随曲线，避免 0%/100% 的突兀感
@@ -271,6 +316,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
 
 
+    /**
+     * 执行 recalculateHeights 方法。
+     */
     private fun recalculateHeights() {
         collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + collapsedExtraPaddingPx
         val minExpanded = collapsedHeightPx + rowHeightPx
@@ -280,6 +328,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         updatePagerHeight(currentHeight.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
 
+    /**
+     * 执行 calculateExpandedHeightForPage 方法。
+     */
     private fun calculateExpandedHeightForPage(pageIndex: Int): Int {
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
         val group = groups.getOrNull(pageIndex) ?: return collapsedHeightPx + rowHeightPx
@@ -294,6 +345,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             .also { expandedHeightCache[key] = it }
     }
 
+    /**
+     * 执行 applyIndicatorStyle 方法。
+     */
     private fun applyIndicatorStyle() {
         val accent = fetchColor(android.R.attr.colorAccent)
         tabLayout.isInlineLabel = false
@@ -330,16 +384,31 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         applyTabItemPresentation()
     }
 
+    /**
+     * 执行 ensureDotTabSelectionListener 方法。
+     */
     private fun ensureDotTabSelectionListener() {
         if (dotTabListenerAttached) return
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            /**
+             * 执行 onTabSelected 方法。
+             */
             override fun onTabSelected(tab: TabLayout.Tab) = updateDotTabState(tab, true)
+            /**
+             * 执行 onTabUnselected 方法。
+             */
             override fun onTabUnselected(tab: TabLayout.Tab) = updateDotTabState(tab, false)
+            /**
+             * 执行 onTabReselected 方法。
+             */
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
         dotTabListenerAttached = true
     }
 
+    /**
+     * 执行 applyTabItemPresentation 方法。
+     */
     private fun applyTabItemPresentation() {
         val isSimpleDots = uiSettings.indicatorStyle == 1
         for (index in 0 until tabLayout.tabCount) {
@@ -356,6 +425,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 执行 createDotTabView 方法。
+     */
     private fun createDotTabView(): View {
         val dot = View(context)
         dot.layoutParams = LinearLayout.LayoutParams(
@@ -370,6 +442,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         return dot
     }
 
+    /**
+     * 执行 updateDotTabState 方法。
+     */
     private fun updateDotTabState(tab: TabLayout.Tab, selected: Boolean) {
         if (uiSettings.indicatorStyle != 1) return
         val dot = tab.customView ?: return
@@ -385,6 +460,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         )
     }
 
+    /**
+     * 执行 fetchColor 方法。
+     */
     private fun fetchColor(attr: Int): Int {
         val value = TypedValue()
         context.theme.resolveAttribute(attr, value, true)
@@ -393,16 +471,28 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
     private inner class SymbolPagerAdapter : PagerAdapter() {
 
+        /**
+         * 执行 getCount 方法。
+         */
         override fun getCount(): Int = groups.size
 
+        /**
+         * 执行 isViewFromObject 方法。
+         */
         override fun isViewFromObject(view: View, `object`: Any): Boolean {
             return view === `object`
         }
 
+        /**
+         * 执行 getPageTitle 方法。
+         */
         override fun getPageTitle(position: Int): CharSequence {
             return groups[position].name
         }
 
+        /**
+         * 执行 instantiateItem 方法。
+         */
         override fun instantiateItem(container: ViewGroup, position: Int): Any {
             val group = groups[position]
 
@@ -489,10 +579,16 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             return scrollView
         }
 
+        /**
+         * 执行 destroyItem 方法。
+         */
         override fun destroyItem(container: ViewGroup, position: Int, `object`: Any) {
             container.removeView(`object` as View)
         }
         
+        /**
+         * 执行 getItemPosition 方法。
+         */
         override fun getItemPosition(`object`: Any): Int {
             return POSITION_NONE // 强制刷新
         }
