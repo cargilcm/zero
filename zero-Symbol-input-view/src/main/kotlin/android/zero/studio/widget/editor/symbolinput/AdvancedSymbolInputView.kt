@@ -411,10 +411,18 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                 overScrollMode = OVER_SCROLL_NEVER
             }
 
-            val gridLayout = GridLayout(context).apply {
+            val contentContainer = FrameLayout(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val gridLayout = GridLayout(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM
                 )
                 columnCount = group.items.size.coerceAtMost(uiSettings.symbolsPerRow.coerceIn(1, 20)).coerceAtLeast(1)
                 val padding = (6 * resources.displayMetrics.density).roundToInt()
@@ -471,7 +479,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                 gridLayout.addView(tv)
             }
 
-            scrollView.addView(gridLayout)
+            contentContainer.addView(gridLayout)
+            scrollView.addView(contentContainer)
             container.addView(scrollView)
             return scrollView
         }
