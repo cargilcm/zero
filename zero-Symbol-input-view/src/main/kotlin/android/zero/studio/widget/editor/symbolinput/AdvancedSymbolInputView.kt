@@ -425,7 +425,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.TOP
+                    Gravity.BOTTOM
                 )
                 columnCount = group.items.size.coerceAtMost(uiSettings.symbolsPerRow.coerceIn(1, 20)).coerceAtLeast(1)
                 val padding = (6 * resources.displayMetrics.density).roundToInt()
