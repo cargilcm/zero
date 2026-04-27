@@ -40,6 +40,7 @@ It is designed around Sora `CodeEditor` and provides:
 - batch operations
 - import/export from clipboard and file
 - Material-style dialogs and input controls
+- Supports direct import and use of symbol configuration JSON files exported from the MT Manager symbol input toolbar management interface.
 
 ### 2.4 Macro Insertion
 
