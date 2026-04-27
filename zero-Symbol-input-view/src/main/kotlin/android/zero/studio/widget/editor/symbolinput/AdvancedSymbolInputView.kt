@@ -49,8 +49,11 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     private val rowHeightPx by lazy { (36 * resources.displayMetrics.density).roundToInt() }
+    private val itemHeightPx by lazy { (44 * resources.displayMetrics.density).roundToInt() }
     private val fullTabHeightPx by lazy { (44 * resources.displayMetrics.density).roundToInt() }
-    private var collapsedHeightPx = rowHeightPx * 2 + (20 * resources.displayMetrics.density).roundToInt()
+    private val collapsedExtraPaddingPx by lazy { (20 * resources.displayMetrics.density).roundToInt() }
+    private val gridVerticalPaddingPx by lazy { (12 * resources.displayMetrics.density).roundToInt() }
+    private var collapsedHeightPx = rowHeightPx * 2 + collapsedExtraPaddingPx
     private var expandedHeightPx = (220 * resources.displayMetrics.density).roundToInt()
     private val touchSlop by lazy { ViewConfiguration.get(context).scaledTouchSlop }
 
@@ -61,6 +64,13 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     private var heightAnimator: ValueAnimator? = null
     private var lastSavedPageIndex = -1
     private var dotTabListenerAttached = false
+    private val expandedHeightCache = mutableMapOf<ExpandedHeightKey, Int>()
+
+    private data class ExpandedHeightKey(
+        val pageIndex: Int,
+        val itemCount: Int,
+        val symbolsPerRow: Int
+    )
 
     // 为兼容 MainActivity 旧代码提供空实现
     var followSystemIme: Boolean = false
@@ -116,6 +126,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             groups.addAll(defaults)
             SymbolDataManager.saveData(context, defaults)
         }
+        expandedHeightCache.clear()
         applyIndicatorStyle()
         recalculateHeights()
         pagerAdapter.notifyDataSetChanged()
@@ -257,20 +268,26 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
 
     private fun recalculateHeights() {
-        collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + (20 * resources.displayMetrics.density).roundToInt()
+        collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + collapsedExtraPaddingPx
         val minExpanded = collapsedHeightPx + rowHeightPx
-        val current = groups.getOrNull(viewPager.currentItem)
-        expandedHeightPx = (current?.let(::calculateExpandedHeightForGroup) ?: minExpanded).coerceAtLeast(minExpanded)
+        val pageIndex = viewPager.currentItem
+        expandedHeightPx = calculateExpandedHeightForPage(pageIndex).coerceAtLeast(minExpanded)
         val currentHeight = viewPager.layoutParams.height
         updatePagerHeight(currentHeight.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
 
-    private fun calculateExpandedHeightForGroup(group: SymbolGroup): Int {
+    private fun calculateExpandedHeightForPage(pageIndex: Int): Int {
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
+        val group = groups.getOrNull(pageIndex) ?: return collapsedHeightPx + rowHeightPx
+        val key = ExpandedHeightKey(
+            pageIndex = pageIndex,
+            itemCount = group.items.size,
+            symbolsPerRow = cols
+        )
+        expandedHeightCache[key]?.let { return it }
         val rows = (group.items.size + cols - 1) / cols
-        val itemHeight = (44 * resources.displayMetrics.density).roundToInt()
-        val verticalPadding = (12 * resources.displayMetrics.density).roundToInt()
-        return (rows.coerceAtLeast(2) * itemHeight) + verticalPadding + fullTabHeightPx
+        return ((rows.coerceAtLeast(2) * itemHeightPx) + gridVerticalPaddingPx + fullTabHeightPx)
+            .also { expandedHeightCache[key] = it }
     }
 
     private fun applyIndicatorStyle() {
