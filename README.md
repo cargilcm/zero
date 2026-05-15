@@ -8,7 +8,8 @@ and import/export of symbol configuration JSON.
 ![preview](zero-Symbol-input-view/ResizedImage_2026-04-27_12-59-55_6518.png)
 
 ---
-
+[简体中文](README_CN.md)
+---
 ## 1) Purpose
 
 This module is designed for scenarios where users frequently input symbols, templates,
