@@ -44,11 +44,12 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     private val groups = mutableListOf<SymbolGroup>()
     private var uiSettings = SymbolUiSettings()
 
-    private val rowHeightPx by lazy { dp(36) }
-    private val itemHeightPx by lazy { dp(44) }
-    private val collapsedExtraPaddingPx by lazy { dp(20) }
-    private var collapsedHeightPx = rowHeightPx * 2 + collapsedExtraPaddingPx
-    private var expandedHeightPx = dp(220)
+    private val gridCellHeightPx by lazy { dp(28) }
+    private val gridHorizontalGapPx by lazy { dp(2) }
+    private val gridVerticalGapPx by lazy { dp(2) }
+    private val gridVerticalPaddingPx by lazy { dp(4) }
+    private var collapsedHeightPx = calculateGridHeight(2)
+    private var expandedHeightPx = calculateGridHeight(4)
 
     private val touchSlop by lazy { ViewConfiguration.get(context).scaledTouchSlop }
     private var initialY = 0f
@@ -235,12 +236,20 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     private fun recalculateHeights() {
-        collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + collapsedExtraPaddingPx
+        val collapsedRows = uiSettings.collapsedRows.coerceAtLeast(1)
+        collapsedHeightPx = calculateGridHeight(collapsedRows)
+
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
         val currentGroup = groups.getOrNull(pagerHost.currentPage)
-        val rows = if (currentGroup == null) 2 else (currentGroup.items.size + cols - 1) / cols
-        expandedHeightPx = (rows.coerceAtLeast(2) * itemHeightPx + dp(10)).coerceAtLeast(collapsedHeightPx + rowHeightPx)
+        val pageRows = if (currentGroup == null) collapsedRows else (currentGroup.items.size + cols - 1) / cols
+        expandedHeightPx = calculateGridHeight(pageRows.coerceAtLeast(collapsedRows))
+
         updatePagerHeight(pagerHost.layoutParams.height.coerceIn(collapsedHeightPx, expandedHeightPx))
+    }
+
+    private fun calculateGridHeight(rows: Int): Int {
+        val safeRows = rows.coerceAtLeast(1)
+        return (safeRows * gridCellHeightPx) + ((safeRows - 1) * gridVerticalGapPx) + (gridVerticalPaddingPx * 2)
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).roundToInt()
@@ -392,9 +401,11 @@ private class SymbolPageGridView(
 
     private val itemHorizontalGapPx: Int get() = dp(2)
     private val itemVerticalGapPx: Int get() = dp(2)
+    private val itemCellHeightPx: Int get() = dp(28)
 
     fun submit(items: List<SymbolItem>) {
         removeAllViews()
+        setPadding(paddingLeft, dp(4), paddingRight, dp(4))
         items.forEach { item ->
             val tv = TextView(context).apply {
                 text = item.display
@@ -435,7 +446,7 @@ private class SymbolPageGridView(
         val gapX = itemHorizontalGapPx
         val gapY = itemVerticalGapPx
         val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
-        val cellHeight = dp(36)
+        val cellHeight = itemCellHeightPx
         val cw = MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY)
         val ch = MeasureSpec.makeMeasureSpec(cellHeight, MeasureSpec.EXACTLY)
 
@@ -452,7 +463,7 @@ private class SymbolPageGridView(
         val gapX = itemHorizontalGapPx
         val gapY = itemVerticalGapPx
         val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
-        val cellHeight = dp(36)
+        val cellHeight = itemCellHeightPx
 
         repeat(childCount) { index ->
             val row = index / cols
