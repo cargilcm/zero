@@ -390,6 +390,9 @@ private class SymbolPageGridView(
         this.settings = settings
     }
 
+    private val itemHorizontalGapPx: Int get() = dp(2)
+    private val itemVerticalGapPx: Int get() = dp(2)
+
     fun submit(items: List<SymbolItem>) {
         removeAllViews()
         items.forEach { item ->
@@ -398,7 +401,7 @@ private class SymbolPageGridView(
                 gravity = Gravity.CENTER
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
-                minHeight = dp(36)
+                minHeight = dp(32)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, settings.symbolTextSizeSp.toFloat())
                 TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
                     this,
@@ -428,28 +431,34 @@ private class SymbolPageGridView(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val cols = settings.symbolsPerRow.coerceIn(1, 20)
-        val cellWidth = (width - paddingLeft - paddingRight) / cols
-        val cellHeight = dp(44)
+        val totalContentWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val gapX = itemHorizontalGapPx
+        val gapY = itemVerticalGapPx
+        val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
+        val cellHeight = dp(36)
         val cw = MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY)
         val ch = MeasureSpec.makeMeasureSpec(cellHeight, MeasureSpec.EXACTLY)
 
         repeat(childCount) { getChildAt(it).measure(cw, ch) }
 
         val rows = (childCount + cols - 1) / cols
-        val totalHeight = paddingTop + paddingBottom + rows * cellHeight
+        val totalHeight = paddingTop + paddingBottom + rows * cellHeight + (rows - 1).coerceAtLeast(0) * gapY
         setMeasuredDimension(width, totalHeight)
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val cols = settings.symbolsPerRow.coerceIn(1, 20)
-        val cellWidth = (width - paddingLeft - paddingRight) / cols
-        val cellHeight = dp(44)
+        val totalContentWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val gapX = itemHorizontalGapPx
+        val gapY = itemVerticalGapPx
+        val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
+        val cellHeight = dp(36)
 
         repeat(childCount) { index ->
             val row = index / cols
             val col = index % cols
-            val left = paddingLeft + col * cellWidth
-            val top = paddingTop + row * cellHeight
+            val left = paddingLeft + col * (cellWidth + gapX)
+            val top = paddingTop + row * (cellHeight + gapY)
             getChildAt(index).layout(left, top, left + cellWidth, top + cellHeight)
         }
     }
