@@ -263,12 +263,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             pagerHost.layoutParams = pagerHost.layoutParams.apply { this.height = clamped }
             requestLayout()
         }
-        val isExpandable = expandedHeightPx > collapsedHeightPx
-        val fraction = if (isExpandable) {
-            (clamped - collapsedHeightPx).toFloat() / (expandedHeightPx - collapsedHeightPx)
-        } else {
-            1f
-        }
+        val fraction = (clamped - collapsedHeightPx).toFloat() / (expandedHeightPx - collapsedHeightPx).coerceAtLeast(1)
         applyIndicatorReveal(fraction)
     }
 
@@ -290,9 +285,10 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         collapsedHeightPx = calculateGridHeight(collapsedRows)
 
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
-        val currentGroup = groups.getOrNull(pagerHost.currentPage)
-        val pageRows = if (currentGroup == null) collapsedRows else (currentGroup.items.size + cols - 1) / cols
-        expandedHeightPx = calculateGridHeight(pageRows.coerceAtLeast(collapsedRows))
+        val maxPageRows = groups.maxOfOrNull { group ->
+            ((group.items.size + cols - 1) / cols).coerceAtLeast(1)
+        } ?: collapsedRows
+        expandedHeightPx = calculateGridHeight(maxPageRows.coerceAtLeast(collapsedRows))
 
         updatePagerHeight(pagerHost.layoutParams.height.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
