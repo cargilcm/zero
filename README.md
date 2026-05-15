@@ -59,6 +59,14 @@ Each symbol can map to:
 
 Action execution is delegated through `SymbolActionExecutor` to the bound editor instance.
 
+### 2.4 Same Capabilities as MT Manager
+
+- Supports direct import of JSON files from the MT Manager symbol input toolbar
+
+- Similar to importing, JSON files exported from zero-Symbol-input-view can also be directly used in the MT Manager symbol input toolbar
+
+- Mostly the same design as MT Manager.
+
 ---
 
 ## 3) Architecture & Design
