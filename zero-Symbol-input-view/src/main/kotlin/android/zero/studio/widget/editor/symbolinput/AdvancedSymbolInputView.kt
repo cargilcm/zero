@@ -81,7 +81,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     init {
-        addView(indicatorBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(44)))
+        addView(indicatorBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(26)))
         addView(pagerHost, LayoutParams(LayoutParams.MATCH_PARENT, collapsedHeightPx))
         pagerHost.bindAdapter(pageAdapter)
         pagerHost.onPageChanged = { page ->
@@ -269,7 +269,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
     private fun applyIndicatorReveal(fraction: Float) {
         val reveal = ((fraction - 0.08f) / 0.47f).coerceIn(0f, 1f)
-        indicatorBar.applyReveal(reveal, dp(44))
+        indicatorBar.applyReveal(reveal, dp(26))
         requestLayout()
     }
 
