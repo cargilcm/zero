@@ -51,8 +51,8 @@ object SymbolDataManager {
         }
     }
 
-/**
-     * 保存用户修改后的数据
+    /**
+     * 保存用户修改后的分组数据到本地持久化存储。
      */
     fun saveData(context: Context, data: List<SymbolGroup>) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -60,7 +60,7 @@ object SymbolDataManager {
     }
 
     /**
-     * 执行 getUiSettings 方法。
+     * 读取并构建当前 UI 配置。
      */
     fun getUiSettings(context: Context): SymbolUiSettings {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -129,7 +129,7 @@ object SymbolDataManager {
 
 
     /**
-     * 执行 shouldTriggerUiRefresh 方法。
+     * 判断某个首选项键是否会影响符号输入控件 UI，需要触发刷新。
      */
     fun shouldTriggerUiRefresh(key: String?): Boolean {
         if (key.isNullOrEmpty()) return false
