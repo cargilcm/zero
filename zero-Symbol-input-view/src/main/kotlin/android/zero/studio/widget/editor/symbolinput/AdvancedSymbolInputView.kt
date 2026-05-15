@@ -4,31 +4,43 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.drawable.ColorDrawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
-import android.widget.FrameLayout
-import android.widget.GridLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import androidx.appcompat.widget.AppCompatTextView
+import android.widget.TextView
 import androidx.core.widget.TextViewCompat
-import androidx.core.widget.NestedScrollView
 import androidx.viewpager.widget.PagerAdapter
 import androidx.viewpager.widget.ViewPager
-import com.google.android.material.tabs.TabLayout
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlin.math.roundToInt
 
 /**
- * AdvancedSymbolInputView 的核心实现。
+ * MT 风格的符号输入控件：
+ * Root(ViewGroup)
+ *  ├─ GroupIndicatorBar(HorizontalScrollView > LinearLayout > (LinearLayout > TextView))
+ *  └─ SymbolPagerHost(ViewGroup > ViewPager > SymbolPageGridView)
+ */
+/**
+ * 高级符号输入控件（纯代码构建）。
  *
+ * ## 架构
+ * - 顶层：`AdvancedSymbolInputView`（`ViewGroup`）
+ * - 分组指示器：`GroupIndicatorBar`（`HorizontalScrollView > LinearLayout > TextView`）
+ * - 分页容器：`SymbolPagerHost`（`ViewPager`）
+ * - 页内网格：`SymbolPageGridView`（自定义网格测量与布局）
+ *
+ * ## 设计目标
+ * 1. 避免 XML 多层嵌套，改为轻量级代码布局；
+ * 2. 将“折叠/展开高度”与网格行高统一到同一计算模型；
+ * 3. 通过设置项控制固定行数、每行符号数以及分页切换体验。
+  *
  * @author android_zero
  * @github msmt2018/zero-Symbol-input-view
  */
@@ -36,153 +48,107 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : LinearLayout(context, attrs, defStyleAttr) {
+) : ViewGroup(context, attrs, defStyleAttr) {
 
-    private val viewPager: ViewPager
-    private val tabLayout: TabLayout
-    private val tabRow: View
+    private val indicatorBar = GroupIndicatorBar(context) { index -> pagerHost.setCurrentPage(index, true) }
+    private val pagerHost = SymbolPagerHost(context)
+    private val pageAdapter = SymbolPagerAdapter()
 
     private var editor: CodeEditor? = null
     var onOpenManagerListener: (() -> Unit)? = null
+    var followSystemIme: Boolean = false
 
     private val groups = mutableListOf<SymbolGroup>()
-    private val pagerAdapter = SymbolPagerAdapter()
     private var uiSettings = SymbolUiSettings()
-    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (SymbolDataManager.shouldTriggerUiRefresh(key)) {
-            refreshData()
-        }
-    }
 
-    private val rowHeightPx by lazy { (36 * resources.displayMetrics.density).roundToInt() }
-    private val itemHeightPx by lazy { (44 * resources.displayMetrics.density).roundToInt() }
-    private var fullTabHeightPx = (44 * resources.displayMetrics.density).roundToInt()
-    private val collapsedExtraPaddingPx by lazy { (20 * resources.displayMetrics.density).roundToInt() }
-    private val gridTopPaddingPx by lazy { (2 * resources.displayMetrics.density).roundToInt() }
-    private val gridBottomPaddingPx by lazy { (8 * resources.displayMetrics.density).roundToInt() }
-    private var collapsedHeightPx = rowHeightPx * 2 + collapsedExtraPaddingPx
-    private var expandedHeightPx = (220 * resources.displayMetrics.density).roundToInt()
+    private val gridCellHeightPx by lazy { dp(28) }
+    private val gridHorizontalGapPx by lazy { dp(2) }
+    private val gridVerticalGapPx by lazy { dp(2) }
+    private val gridVerticalPaddingPx by lazy { dp(4) }
+    private var collapsedHeightPx = calculateGridHeight(2)
+    private var expandedHeightPx = calculateGridHeight(4)
+
     private val touchSlop by lazy { ViewConfiguration.get(context).scaledTouchSlop }
-
     private var initialY = 0f
     private var initialX = 0f
     private var lastY = 0f
     private var isDragging = false
     private var heightAnimator: ValueAnimator? = null
     private var lastSavedPageIndex = -1
-    private var dotTabListenerAttached = false
-    private val expandedHeightCache = mutableMapOf<ExpandedHeightKey, Int>()
 
-    /**
-     * ExpandedHeightKey 的核心实现。
-     *
-     * @author android_zero
-     * @github msmt2018/zero-Symbol-input-view
-     */
-    private data class ExpandedHeightKey(
-        val pageIndex: Int,
-        val itemCount: Int,
-        val symbolsPerRow: Int
-    )
-
-    // 为兼容 MainActivity 旧代码提供空实现
-    var followSystemIme: Boolean = false
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (SymbolDataManager.shouldTriggerUiRefresh(key)) refreshData()
+    }
 
     init {
-        orientation = VERTICAL
-        val root = LayoutInflater.from(context).inflate(R.layout.view_advanced_symbol_input, this, true)
-        viewPager = root.findViewById(R.id.symbol_view_pager)
-        tabLayout = root.findViewById(R.id.symbol_tab_layout)
-        tabRow = root.findViewById(R.id.tab_row)
-        fullTabHeightPx = tabRow.layoutParams.height
-            .takeIf { it > 0 }
-            ?: fullTabHeightPx
-
-        viewPager.adapter = pagerAdapter
-        tabLayout.setupWithViewPager(viewPager)
-        ensureDotTabSelectionListener()
-        viewPager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
-            /**
-             * 执行 onPageSelected 方法。
-             */
-            override fun onPageSelected(position: Int) {
-                if (uiSettings.rememberLastPage && lastSavedPageIndex != position) {
-                    lastSavedPageIndex = position
-                    SymbolDataManager.setLastPageIndex(context, position)
-                }
-                recalculateHeights()
+        addView(indicatorBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(44)))
+        addView(pagerHost, LayoutParams(LayoutParams.MATCH_PARENT, collapsedHeightPx))
+        pagerHost.bindAdapter(pageAdapter)
+        pagerHost.onPageChanged = { page ->
+            indicatorBar.setSelectedIndex(page)
+            if (uiSettings.rememberLastPage && lastSavedPageIndex != page) {
+                lastSavedPageIndex = page
+                SymbolDataManager.setLastPageIndex(context, page)
             }
-        })
-
-        updatePagerHeight(collapsedHeightPx)
-        applyTabRowByFraction(0f)
+            recalculateHeights()
+        }
         refreshData()
+        applyIndicatorReveal(0f)
     }
 
     /**
-     * 为兼容而保留的方法名，内部实际已不需要外部的 BottomSheet 支持
+     * 与旧调用链兼容的占位方法。
+     *
+     * 当前版本由控件内部管理展开/折叠，不再依赖外部 `BottomSheetBehavior`。
      */
-    fun setupWithBottomSheet(rootView: View, bottomSheet: View, followView: View? = null) {
-        // Do nothing. 我们现在依靠自己的手势和 RelativeLayout 机制。
+    fun setupWithBottomSheet(rootView: View, bottomSheet: View, followView: View? = null) = Unit
+
+    /** 绑定编辑器实例，用于执行符号插入动作。 */
+    fun bindEditor(editor: CodeEditor) {
+        this.editor = editor
     }
 
-    /**
-     * 执行 onHostResume 方法。
-     */
+    /** 页面恢复时按设置恢复抽屉展开状态。 */
     fun onHostResume() {
         val shouldExpand = uiSettings.rememberExpanded && SymbolDataManager.getLastExpanded(context)
         animateToHeight(if (shouldExpand) expandedHeightPx else collapsedHeightPx)
     }
 
     /**
-     * 执行 bindEditor 方法。
-     */
-    fun bindEditor(editor: CodeEditor) {
-        this.editor = editor
-    }
-
-    /**
-     * 执行 refreshData 方法。
+     * 重新加载分组与样式配置，并刷新分页与指示器。
      */
     fun refreshData() {
         uiSettings = SymbolDataManager.getUiSettings(context)
-        val newData = SymbolDataManager.loadData(context)
+
         groups.clear()
-        groups.addAll(newData.filter { it.items.isNotEmpty() })
+        groups.addAll(SymbolDataManager.loadData(context).filter { it.items.isNotEmpty() })
         if (groups.isEmpty()) {
             val defaults = SymbolDefaults.createFallbackGroups()
             groups.addAll(defaults)
             SymbolDataManager.saveData(context, defaults)
         }
-        expandedHeightCache.clear()
-        applyIndicatorStyle()
-        recalculateHeights()
-        pagerAdapter.notifyDataSetChanged()
+
+        indicatorBar.submitGroups(groups)
+        pageAdapter.notifyDataSetChanged()
+
         if (groups.isNotEmpty()) {
             val target = if (uiSettings.rememberLastPage) {
                 SymbolDataManager.getLastPageIndex(context).coerceIn(0, groups.lastIndex)
-            } else {
-                0
-            }
-            viewPager.currentItem = target
+            } else 0
+            pagerHost.setCurrentPage(target, false)
+            indicatorBar.setSelectedIndex(target)
             lastSavedPageIndex = target
         }
-        tabLayout.post { applyIndicatorStyle() }
+
+        recalculateHeights()
     }
 
-    /**
-     * 执行 onAttachedToWindow 方法。
-     */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         context.getSharedPreferences("advanced_symbol_prefs", Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(prefsListener)
-        applyIndicatorStyle()
     }
 
-    /**
-     * 执行 onDetachedFromWindow 方法。
-     */
     override fun onDetachedFromWindow() {
         context.getSharedPreferences("advanced_symbol_prefs", Context.MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
@@ -190,8 +156,41 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     /**
-     * 执行 onInterceptTouchEvent 方法。
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
      */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val indicatorHeight = indicatorBar.layoutParams.height.coerceAtLeast(0)
+        measureChild(indicatorBar, widthMeasureSpec, MeasureSpec.makeMeasureSpec(indicatorHeight, MeasureSpec.EXACTLY))
+
+        val pagerHeight = pagerHost.layoutParams.height.coerceAtLeast(collapsedHeightPx)
+        pagerHost.measure(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(pagerHeight, MeasureSpec.EXACTLY)
+        )
+
+        setMeasuredDimension(width, indicatorBar.measuredHeight + pagerHost.measuredHeight)
+    }
+
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val width = r - l
+        val indicatorHeight = indicatorBar.measuredHeight
+        indicatorBar.layout(0, 0, width, indicatorHeight)
+        pagerHost.layout(0, indicatorHeight, width, indicatorHeight + pagerHost.measuredHeight)
+    }
+
+    override fun generateLayoutParams(attrs: AttributeSet): LayoutParams = MarginLayoutParams(context, attrs)
+    override fun generateDefaultLayoutParams(): LayoutParams = MarginLayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+    override fun generateLayoutParams(p: LayoutParams): LayoutParams = MarginLayoutParams(p)
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -200,28 +199,21 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                 initialX = ev.rawX
                 isDragging = false
             }
-
             MotionEvent.ACTION_MOVE -> {
-                val deltaY = ev.rawY - initialY
-                val deltaX = ev.rawX - initialX
-                if (!isDragging && kotlin.math.abs(deltaY) > touchSlop && kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX)) {
+                val dy = ev.rawY - initialY
+                val dx = ev.rawX - initialX
+                if (!isDragging && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
                     isDragging = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
                 }
             }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isDragging = false
-            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDragging = false
         }
         return super.onInterceptTouchEvent(ev)
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    /**
-     * 执行 onTouchEvent 方法。
-     */
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -230,26 +222,22 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                 lastY = event.rawY
                 return true
             }
-
             MotionEvent.ACTION_MOVE -> {
                 if (!isDragging) return super.onTouchEvent(event)
                 val deltaY = event.rawY - lastY
-                val currentHeight = viewPager.layoutParams.height.coerceAtLeast(collapsedHeightPx)
-                val nextHeight = (currentHeight - deltaY.toInt()).coerceIn(collapsedHeightPx, expandedHeightPx)
+                val nextHeight = (pagerHost.layoutParams.height - deltaY.toInt()).coerceIn(collapsedHeightPx, expandedHeightPx)
                 updatePagerHeight(nextHeight)
                 lastY = event.rawY
                 return true
             }
-
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (isDragging) {
-                    val currentHeight = viewPager.layoutParams.height.coerceAtLeast(collapsedHeightPx)
                     val midpoint = (collapsedHeightPx + expandedHeightPx) / 2
-                    val targetHeight = if (currentHeight >= midpoint) expandedHeightPx else collapsedHeightPx
+                    val target = if (pagerHost.layoutParams.height >= midpoint) expandedHeightPx else collapsedHeightPx
                     if (uiSettings.rememberExpanded) {
-                        SymbolDataManager.setLastExpanded(context, targetHeight == expandedHeightPx)
+                        SymbolDataManager.setLastExpanded(context, target == expandedHeightPx)
                     }
-                    animateToHeight(targetHeight)
+                    animateToHeight(target)
                 }
                 isDragging = false
                 return true
@@ -258,341 +246,345 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
-    /**
-     * 执行 animateToHeight 方法。
-     */
     private fun animateToHeight(targetHeight: Int) {
-        val currentHeight = viewPager.layoutParams.height.coerceAtLeast(collapsedHeightPx)
+        val currentHeight = pagerHost.layoutParams.height.coerceAtLeast(collapsedHeightPx)
         if (currentHeight == targetHeight) return
         heightAnimator?.cancel()
         heightAnimator = ValueAnimator.ofInt(currentHeight, targetHeight).apply {
             duration = 200
-            addUpdateListener { animation ->
-                updatePagerHeight(animation.animatedValue as Int)
-            }
+            addUpdateListener { updatePagerHeight(it.animatedValue as Int) }
             start()
         }
     }
 
-    /**
-     * 执行 updatePagerHeight 方法。
-     */
     private fun updatePagerHeight(height: Int) {
         val clamped = height.coerceIn(collapsedHeightPx, expandedHeightPx)
-        val params = viewPager.layoutParams
-        if (params.height != clamped) {
-            params.height = clamped
-            viewPager.layoutParams = params
+        if (pagerHost.layoutParams.height != clamped) {
+            pagerHost.layoutParams = pagerHost.layoutParams.apply { this.height = clamped }
+            requestLayout()
         }
-        val range = (expandedHeightPx - collapsedHeightPx).coerceAtLeast(1)
-        val fraction = (clamped - collapsedHeightPx).toFloat() / range.toFloat()
-        applyTabRowByFraction(fraction)
+        val fraction = (clamped - collapsedHeightPx).toFloat() / (expandedHeightPx - collapsedHeightPx).coerceAtLeast(1)
+        applyIndicatorReveal(fraction)
+    }
+
+    private fun applyIndicatorReveal(fraction: Float) {
+        val reveal = ((fraction - 0.08f) / 0.47f).coerceIn(0f, 1f)
+        indicatorBar.applyReveal(reveal, dp(44))
+        requestLayout()
     }
 
     /**
-     * 执行 applyTabRowByFraction 方法。
-     */
-    private fun applyTabRowByFraction(fraction: Float) {
-        val clamped = fraction.coerceIn(0f, 1f)
-        // Material 风格下采用“延迟开始、提前完成”的跟随曲线，避免 0%/100% 的突兀感
-        // 例如抽屉到 10% 时，Tab 大约出现 4% 左右；到 55% 时基本完成显现
-        val revealStart = 0.08f
-        val revealEnd = 0.55f
-        val revealProgress = ((clamped - revealStart) / (revealEnd - revealStart)).coerceIn(0f, 1f)
-
-        val params = tabRow.layoutParams
-        val rawHeight = (fullTabHeightPx * revealProgress).roundToInt()
-        val quantizeStep = (2 * resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
-        val targetHeight = (rawHeight / quantizeStep) * quantizeStep
-        if (params.height != targetHeight) {
-            params.height = targetHeight
-            tabRow.layoutParams = params
-        }
-        tabRow.alpha = revealProgress
-        tabRow.translationY = (1f - revealProgress) * -6f * resources.displayMetrics.density
-        tabRow.visibility = if (targetHeight == 0) View.INVISIBLE else View.VISIBLE
-    }
-
-
-
-
-    /**
-     * 执行 recalculateHeights 方法。
+     * 依据当前配置与页面数据重新计算折叠/展开高度。
+     *
+     * - 折叠高度：严格按 `collapsedRows` 计算；
+     * - 展开高度：按当前页的真实行数计算；
+     * - 两者都使用同一网格高度公式，避免出现“设置 2 行却显示 3 行”的漂移问题。
      */
     private fun recalculateHeights() {
-        collapsedHeightPx = rowHeightPx * uiSettings.collapsedRows.coerceAtLeast(1) + collapsedExtraPaddingPx
-        val minExpanded = collapsedHeightPx + rowHeightPx
-        val pageIndex = viewPager.currentItem
-        expandedHeightPx = calculateExpandedHeightForPage(pageIndex).coerceAtLeast(minExpanded)
-        val currentHeight = viewPager.layoutParams.height
-        updatePagerHeight(currentHeight.coerceIn(collapsedHeightPx, expandedHeightPx))
-    }
+        val collapsedRows = uiSettings.collapsedRows.coerceAtLeast(1)
+        collapsedHeightPx = calculateGridHeight(collapsedRows)
 
-    /**
-     * 执行 calculateExpandedHeightForPage 方法。
-     */
-    private fun calculateExpandedHeightForPage(pageIndex: Int): Int {
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
-        val group = groups.getOrNull(pageIndex) ?: return collapsedHeightPx + rowHeightPx
-        val key = ExpandedHeightKey(
-            pageIndex = pageIndex,
-            itemCount = group.items.size,
-            symbolsPerRow = cols
-        )
-        expandedHeightCache[key]?.let { return it }
-        val rows = (group.items.size + cols - 1) / cols
-        return ((rows.coerceAtLeast(2) * itemHeightPx) + gridTopPaddingPx + gridBottomPaddingPx)
-            .also { expandedHeightCache[key] = it }
+        val currentGroup = groups.getOrNull(pagerHost.currentPage)
+        val pageRows = if (currentGroup == null) collapsedRows else (currentGroup.items.size + cols - 1) / cols
+        expandedHeightPx = calculateGridHeight(pageRows.coerceAtLeast(collapsedRows))
+
+        updatePagerHeight(pagerHost.layoutParams.height.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
 
-    /**
-     * 执行 applyIndicatorStyle 方法。
-     */
-    private fun applyIndicatorStyle() {
-        val accent = fetchColor(android.R.attr.colorAccent)
-        tabLayout.isInlineLabel = false
-        tabLayout.tabMode = TabLayout.MODE_SCROLLABLE
-        tabLayout.setTabIndicatorFullWidth(false)
-        tabLayout.setSelectedTabIndicator(ColorDrawable(accent))
-        tabLayout.setSelectedTabIndicatorColor(accent)
-        tabLayout.setSelectedTabIndicatorHeight((2 * resources.displayMetrics.density).roundToInt())
-        tabLayout.setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_BOTTOM)
-
-        when (uiSettings.indicatorStyle) {
-            0 -> Unit // 标准
-            1 -> {
-                // 简洁风格：采用页码点样式，不显示 Tab 文本与默认 TabLayout 指示条
-                tabLayout.tabMode = TabLayout.MODE_FIXED
-                tabLayout.setSelectedTabIndicator(ColorDrawable(0))
-                tabLayout.setSelectedTabIndicatorHeight(0)
-            }
-            2 -> {
-                tabLayout.setSelectedTabIndicator(ColorDrawable(0))
-                tabLayout.setSelectedTabIndicatorHeight(0)
-            }
-            3 -> {
-                tabLayout.setSelectedTabIndicator(ColorDrawable(accent))
-                tabLayout.setSelectedTabIndicatorHeight((3 * resources.displayMetrics.density).roundToInt())
-                tabLayout.setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_TOP)
-            }
-            4 -> {
-                tabLayout.setTabIndicatorFullWidth(true)
-                tabLayout.setSelectedTabIndicator(R.drawable.bg_indicator_block)
-                tabLayout.setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_STRETCH)
-            }
-        }
-        applyTabItemPresentation()
+    private fun calculateGridHeight(rows: Int): Int {
+        val safeRows = rows.coerceAtLeast(1)
+        return (safeRows * gridCellHeightPx) + ((safeRows - 1) * gridVerticalGapPx) + (gridVerticalPaddingPx * 2)
     }
 
-    /**
-     * 执行 ensureDotTabSelectionListener 方法。
-     */
-    private fun ensureDotTabSelectionListener() {
-        if (dotTabListenerAttached) return
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            /**
-             * 执行 onTabSelected 方法。
-             */
-            override fun onTabSelected(tab: TabLayout.Tab) = updateDotTabState(tab, true)
-            /**
-             * 执行 onTabUnselected 方法。
-             */
-            override fun onTabUnselected(tab: TabLayout.Tab) = updateDotTabState(tab, false)
-            /**
-             * 执行 onTabReselected 方法。
-             */
-            override fun onTabReselected(tab: TabLayout.Tab) = Unit
-        })
-        dotTabListenerAttached = true
-    }
-
-    /**
-     * 执行 applyTabItemPresentation 方法。
-     */
-    private fun applyTabItemPresentation() {
-        val isSimpleDots = uiSettings.indicatorStyle == 1
-        for (index in 0 until tabLayout.tabCount) {
-            val tab = tabLayout.getTabAt(index) ?: continue
-            if (isSimpleDots) {
-                if (tab.customView == null) {
-                    tab.customView = createDotTabView()
-                }
-                updateDotTabState(tab, tab.isSelected)
-                tab.contentDescription = groups.getOrNull(index)?.name
-            } else {
-                tab.customView = null
-            }
-        }
-    }
-
-    /**
-     * 执行 createDotTabView 方法。
-     */
-    private fun createDotTabView(): View {
-        val dot = View(context)
-        dot.layoutParams = LinearLayout.LayoutParams(
-            (8 * resources.displayMetrics.density).roundToInt(),
-            (8 * resources.displayMetrics.density).roundToInt()
-        ).apply {
-            leftMargin = (4 * resources.displayMetrics.density).roundToInt()
-            rightMargin = (4 * resources.displayMetrics.density).roundToInt()
-            gravity = Gravity.CENTER
-        }
-        dot.setBackgroundResource(R.drawable.bg_page_indicator_dot)
-        return dot
-    }
-
-    /**
-     * 执行 updateDotTabState 方法。
-     */
-    private fun updateDotTabState(tab: TabLayout.Tab, selected: Boolean) {
-        if (uiSettings.indicatorStyle != 1) return
-        val dot = tab.customView ?: return
-        val params = dot.layoutParams as? LinearLayout.LayoutParams ?: return
-        val width = ((if (selected) 18 else 8) * resources.displayMetrics.density).roundToInt()
-        if (params.width != width) {
-            params.width = width
-            dot.layoutParams = params
-        }
-        dot.alpha = if (selected) 1f else 0.65f
-        dot.setBackgroundResource(
-            if (selected) R.drawable.bg_page_indicator_capsule else R.drawable.bg_page_indicator_dot
-        )
-    }
-
-    /**
-     * 执行 fetchColor 方法。
-     */
-    private fun fetchColor(attr: Int): Int {
-        val value = TypedValue()
-        context.theme.resolveAttribute(attr, value, true)
-        return if (value.resourceId != 0) context.getColor(value.resourceId) else value.data
-    }
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).roundToInt()
 
     private inner class SymbolPagerAdapter : PagerAdapter() {
-
-        /**
-         * 执行 getCount 方法。
-         */
         override fun getCount(): Int = groups.size
+        override fun isViewFromObject(view: View, `object`: Any): Boolean = view === `object`
 
-        /**
-         * 执行 isViewFromObject 方法。
-         */
-        override fun isViewFromObject(view: View, `object`: Any): Boolean {
-            return view === `object`
-        }
-
-        /**
-         * 执行 getPageTitle 方法。
-         */
-        override fun getPageTitle(position: Int): CharSequence {
-            return groups[position].name
-        }
-
-        /**
-         * 执行 instantiateItem 方法。
-         */
         override fun instantiateItem(container: ViewGroup, position: Int): Any {
             val group = groups[position]
-
-            val scrollView = NestedScrollView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                
-                // 设置为false:避免内容被强制拉伸到整页高度，导致顶部出现空白
-                isFillViewport = false
-                overScrollMode = OVER_SCROLL_NEVER
-            }
-
-            val contentContainer = FrameLayout(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            val gridLayout = GridLayout(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.BOTTOM
-                )
-                columnCount = group.items.size.coerceAtMost(uiSettings.symbolsPerRow.coerceIn(1, 20)).coerceAtLeast(1)
-                val horizontalPadding = (6 * resources.displayMetrics.density).roundToInt()
-                setPadding(horizontalPadding, gridTopPaddingPx, horizontalPadding, gridBottomPaddingPx)
-            }
-
-            for (item in group.items) {
-                val tv = AppCompatTextView(context).apply {
-                    layoutParams = GridLayout.LayoutParams().apply {
-                        width = 0
-                        height = ViewGroup.LayoutParams.WRAP_CONTENT
-                        columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                        setMargins(4, 4, 4, 4)
-                    }
-                    minHeight = (36 * resources.displayMetrics.density).roundToInt()
-                    gravity = Gravity.CENTER
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, uiSettings.symbolTextSizeSp.toFloat())
-                    text = item.display
-                    maxLines = 1
-                    ellipsize = TextUtils.TruncateAt.END
-                    isClickable = true
-                    isFocusable = true
-                    TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-                        this,
-                        10,
-                        uiSettings.symbolTextSizeSp.coerceAtLeast(12),
-                        1,
-                        TypedValue.COMPLEX_UNIT_SP
-                    )
-
-                    val tvColor = TypedValue()
-                    context.theme.resolveAttribute(android.R.attr.textColorPrimary, tvColor, true)
-                    setTextColor(if (tvColor.resourceId != 0) context.getColor(tvColor.resourceId) else tvColor.data)
-
-                    val tvBg = TypedValue()
-                    context.theme.resolveAttribute(android.R.attr.selectableItemBackground, tvBg, true)
-                    setBackgroundResource(tvBg.resourceId)
-
-                    setOnClickListener {
-                        editor?.let { ed ->
-                            SymbolActionExecutor.execute(ed, item.shortAction, item.shortText, onOpenManagerListener)
+            val pageView = SymbolPageGridView(context) { item, isLong ->
+                if (isLong) {
+                    val action = item.longAction
+                    if (action != null) {
+                        editor?.let {
+                            SymbolActionExecutor.execute(it, action, item.longText, onOpenManagerListener)
                         }
                     }
-
-                    setOnLongClickListener {
-                        if (item.longAction != null) {
-                            editor?.let { ed ->
-                                SymbolActionExecutor.execute(ed, item.longAction!!, item.longText, onOpenManagerListener)
-                            }
-                            true
-                        } else false
+                } else {
+                    editor?.let {
+                        SymbolActionExecutor.execute(it, item.shortAction, item.shortText, onOpenManagerListener)
                     }
                 }
-                gridLayout.addView(tv)
             }
-
-            contentContainer.addView(gridLayout)
-            scrollView.addView(contentContainer)
-            container.addView(scrollView)
-            return scrollView
+            pageView.updateConfig(uiSettings)
+            pageView.submit(group.items)
+            container.addView(pageView)
+            return pageView
         }
 
-        /**
-         * 执行 destroyItem 方法。
-         */
         override fun destroyItem(container: ViewGroup, position: Int, `object`: Any) {
             container.removeView(`object` as View)
         }
-        
-        /**
-         * 执行 getItemPosition 方法。
-         */
-        override fun getItemPosition(`object`: Any): Int {
-            return POSITION_NONE // 强制刷新
+
+        override fun getItemPosition(`object`: Any): Int = POSITION_NONE
+    }
+}
+
+/**
+ * 分组指示器组件。
+ *
+ * 使用横向滚动容器承载多个分组项，负责：
+ * - 渲染分组标题；
+ * - 选中态高亮与自动滚动居中；
+ * - 展开过程中的显隐与位移动画。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
+ */
+private class GroupIndicatorBar(
+    context: Context,
+    private val onGroupClicked: (Int) -> Unit
+) : ViewGroup(context) {
+
+    private val scroll = HorizontalScrollView(context).apply {
+        overScrollMode = OVER_SCROLL_NEVER
+        isHorizontalScrollBarEnabled = false
+    }
+    private val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+
+    init {
+        scroll.addView(row, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
+        addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
+
+    fun submitGroups(groups: List<SymbolGroup>) {
+        row.removeAllViews()
+        groups.forEachIndexed { index, group ->
+            val item = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+                addView(TextView(context).apply {
+                    text = group.name
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+                setOnClickListener { onGroupClicked(index) }
+            }
+            row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         }
     }
+
+    fun setSelectedIndex(index: Int) {
+        for (i in 0 until row.childCount) {
+            row.getChildAt(i).alpha = if (i == index) 1f else 0.6f
+        }
+        row.getChildAt(index)?.let { child ->
+            val center = child.left + child.width / 2
+            scroll.smoothScrollTo((center - width / 2).coerceAtLeast(0), 0)
+        }
+    }
+
+    fun applyReveal(fraction: Float, fullHeight: Int) {
+        alpha = fraction
+        translationY = (1f - fraction) * -6f * resources.displayMetrics.density
+        layoutParams = layoutParams.apply { height = (fullHeight * fraction).roundToInt() }
+        visibility = if (fraction <= 0f) View.INVISIBLE else View.VISIBLE
+    }
+
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.getSize(heightMeasureSpec)
+        scroll.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+        setMeasuredDimension(width, height)
+    }
+
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        scroll.layout(0, 0, r - l, b - t)
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
+}
+
+/**
+ * 分页承载组件，职责为包装 `ViewPager` 并向外暴露最小化 API。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
+ */
+private class SymbolPagerHost(context: Context) : ViewGroup(context) {
+    private val pager = ViewPager(context).apply { overScrollMode = OVER_SCROLL_NEVER }
+    var onPageChanged: ((Int) -> Unit)? = null
+    val currentPage: Int get() = pager.currentItem
+
+    init {
+        addView(pager, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        pager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
+            override fun onPageSelected(position: Int) {
+                onPageChanged?.invoke(position)
+            }
+        })
+    }
+
+    fun bindAdapter(adapter: PagerAdapter) {
+        pager.adapter = adapter
+    }
+
+    fun setCurrentPage(page: Int, smooth: Boolean) {
+        pager.setCurrentItem(page, smooth)
+    }
+
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.getSize(heightMeasureSpec)
+        pager.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+        setMeasuredDimension(width, height)
+    }
+
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        pager.layout(0, 0, r - l, b - t)
+    }
+}
+
+/**
+ * 分页内符号网格组件。
+ *
+ * 采用自定义测量与布局逻辑，支持：
+ * - 固定每行符号数；
+ * - 紧凑的行高/间距控制；
+ * - 点击与长按动作分发。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
+ */
+private class SymbolPageGridView(
+    context: Context,
+    private val onItemTriggered: (SymbolItem, Boolean) -> Unit
+) : ViewGroup(context) {
+
+    private var settings = SymbolUiSettings()
+
+    /** 更新页面渲染配置（行列、字体、交互策略等）。 */
+    fun updateConfig(settings: SymbolUiSettings) {
+        this.settings = settings
+    }
+
+    private val itemHorizontalGapPx: Int get() = dp(2)
+    private val itemVerticalGapPx: Int get() = dp(2)
+    private val itemCellHeightPx: Int get() = dp(28)
+
+    /**
+     * 提交当前页符号列表并重建子视图。
+     *
+     * @param items 当前分组下用于展示的符号项集合。
+     */
+    fun submit(items: List<SymbolItem>) {
+        removeAllViews()
+        setPadding(paddingLeft, dp(4), paddingRight, dp(4))
+        items.forEach { item ->
+            val tv = TextView(context).apply {
+                text = item.display
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                minHeight = dp(32)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, settings.symbolTextSizeSp.toFloat())
+                TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                    this,
+                    10,
+                    settings.symbolTextSizeSp.coerceAtLeast(12),
+                    1,
+                    TypedValue.COMPLEX_UNIT_SP
+                )
+                val bg = TypedValue()
+                context.theme.resolveAttribute(android.R.attr.selectableItemBackground, bg, true)
+                setBackgroundResource(bg.resourceId)
+                setOnClickListener { onItemTriggered(item, false) }
+                setOnLongClickListener {
+                    if (item.longAction != null) {
+                        onItemTriggered(item, true)
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            addView(tv)
+        }
+        requestLayout()
+    }
+
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val cols = settings.symbolsPerRow.coerceIn(1, 20)
+        val totalContentWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val gapX = itemHorizontalGapPx
+        val gapY = itemVerticalGapPx
+        val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
+        val cellHeight = itemCellHeightPx
+        val cw = MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY)
+        val ch = MeasureSpec.makeMeasureSpec(cellHeight, MeasureSpec.EXACTLY)
+
+        repeat(childCount) { getChildAt(it).measure(cw, ch) }
+
+        val rows = (childCount + cols - 1) / cols
+        val totalHeight = paddingTop + paddingBottom + rows * cellHeight + (rows - 1).coerceAtLeast(0) * gapY
+        setMeasuredDimension(width, totalHeight)
+    }
+
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val cols = settings.symbolsPerRow.coerceIn(1, 20)
+        val totalContentWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val gapX = itemHorizontalGapPx
+        val gapY = itemVerticalGapPx
+        val cellWidth = ((totalContentWidth - gapX * (cols - 1)).coerceAtLeast(0)) / cols
+        val cellHeight = itemCellHeightPx
+
+        repeat(childCount) { index ->
+            val row = index / cols
+            val col = index % cols
+            val left = paddingLeft + col * (cellWidth + gapX)
+            val top = paddingTop + row * (cellHeight + gapY)
+            getChildAt(index).layout(left, top, left + cellWidth, top + cellHeight)
+        }
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).roundToInt()
 }

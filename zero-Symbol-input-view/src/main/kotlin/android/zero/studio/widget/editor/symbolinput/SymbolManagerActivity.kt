@@ -44,7 +44,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * SymbolManagerActivity 的核心实现。
+ * 符号管理页面。
+ *
+ * 提供符号分组与条目的可视化管理能力，包括新增、编辑、排序、批量操作、导入导出与样式设置。
  *
  * @author android_zero
  * @github msmt2018/zero-Symbol-input-view
@@ -74,7 +76,7 @@ class SymbolManagerActivity : AppCompatActivity() {
     }
 
     /**
-     * 执行 onCreate 方法。
+     * 初始化界面、数据与交互事件。
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -710,7 +712,7 @@ class SymbolManagerActivity : AppCompatActivity() {
 
         var selectedIndex = viewPager.currentItem.coerceIn(0, symbolGroups.lastIndex)
 
-        /**
+    /**
          * 执行 showChooser 方法。
          */
         fun showChooser() {
@@ -846,7 +848,7 @@ class SymbolManagerActivity : AppCompatActivity() {
         }
         scrollView.addView(content)
 
-        /**
+    /**
          * 执行 createEntry 方法。
          */
         fun createEntry(title: String, subtitle: String): View {
@@ -1004,24 +1006,24 @@ class SymbolManagerActivity : AppCompatActivity() {
     }
 
     private inner class GroupPagerAdapter : PagerAdapter() {
-        /**
+    /**
          * 执行 getCount 方法。
          */
         override fun getCount(): Int = symbolGroups.size + 1
 
-        /**
+    /**
          * 执行 isViewFromObject 方法。
          */
         override fun isViewFromObject(view: View, `object`: Any): Boolean = view === `object`
 
-        /**
+    /**
          * 执行 getPageTitle 方法。
          */
         override fun getPageTitle(position: Int): CharSequence {
             return if (isSettingsPosition(position)) settingsTabTitle else symbolGroups[position].name
         }
 
-        /**
+    /**
          * 执行 instantiateItem 方法。
          */
         override fun instantiateItem(container: ViewGroup, position: Int): Any {
@@ -1040,7 +1042,7 @@ class SymbolManagerActivity : AppCompatActivity() {
                 ItemTouchHelper.UP or ItemTouchHelper.DOWN,
                 0
             ) {
-                /**
+        /**
                  * 执行 onMove 方法。
                  */
                 override fun onMove(
@@ -1062,14 +1064,14 @@ class SymbolManagerActivity : AppCompatActivity() {
                     return true
                 }
 
-                /**
+        /**
                  * 执行 onSwiped 方法。
                  */
                 override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                     // no-op
                 }
 
-                /**
+        /**
                  * 执行 isLongPressDragEnabled 方法。
                  */
                 override fun isLongPressDragEnabled(): Boolean = false
@@ -1082,14 +1084,14 @@ class SymbolManagerActivity : AppCompatActivity() {
             return rv
         }
 
-        /**
+    /**
          * 执行 destroyItem 方法。
          */
         override fun destroyItem(container: ViewGroup, position: Int, `object`: Any) {
             container.removeView(`object` as View)
         }
 
-        /**
+    /**
          * 执行 getItemPosition 方法。
          */
         override fun getItemPosition(`object`: Any): Int = POSITION_NONE
@@ -1102,7 +1104,7 @@ class SymbolManagerActivity : AppCompatActivity() {
 
         private var touchHelper: ItemTouchHelper? = null
 
-        /**
+    /**
          * 执行 attachTouchHelper 方法。
          */
         fun attachTouchHelper(helper: ItemTouchHelper) {
@@ -1115,7 +1117,7 @@ class SymbolManagerActivity : AppCompatActivity() {
             val dragHandle: View = view.findViewById(R.id.iv_drag_handle)
         }
 
-        /**
+    /**
          * 执行 onCreateViewHolder 方法。
          */
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ItemViewHolder {
@@ -1123,7 +1125,7 @@ class SymbolManagerActivity : AppCompatActivity() {
             return ItemViewHolder(view)
         }
 
-        /**
+    /**
          * 执行 onBindViewHolder 方法。
          */
         override fun onBindViewHolder(holder: ItemViewHolder, position: Int) {
@@ -1172,7 +1174,7 @@ class SymbolManagerActivity : AppCompatActivity() {
             }
         }
 
-        /**
+    /**
          * 执行 getItemCount 方法。
          */
         override fun getItemCount() = group.items.size

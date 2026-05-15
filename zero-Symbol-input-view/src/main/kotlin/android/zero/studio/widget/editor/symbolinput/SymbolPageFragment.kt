@@ -14,7 +14,9 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlin.math.roundToInt
 
 /**
- * SymbolPageFragment 的核心实现。
+ * 单个符号分组页面。
+ *
+ * 负责渲染指定分组的网格列表，并将点击/长按动作分发给 `SymbolActionExecutor`。
  *
  * @author android_zero
  * @github msmt2018/zero-Symbol-input-view
@@ -26,7 +28,7 @@ class SymbolPageFragment : Fragment() {
         private const val ARG_VIEW_ID = "arg_view_id"
 
         /**
-         * 执行 newInstance 方法。
+         * 创建并初始化页面实例。
          */
         fun newInstance(groupIndex: Int, viewId: Int): SymbolPageFragment {
             val fragment = SymbolPageFragment()
@@ -42,7 +44,7 @@ class SymbolPageFragment : Fragment() {
     private lateinit var viewModel: SymbolInputViewModel
 
     /**
-     * 执行 onCreate 方法。
+     * 初始化界面、数据与交互事件。
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +52,7 @@ class SymbolPageFragment : Fragment() {
     }
 
     /**
-     * 执行 onCreateView 方法。
+     * 创建页面视图并绑定网格适配器。
      */
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -89,7 +91,7 @@ class SymbolPageFragment : Fragment() {
 
         inner class SymbolViewHolder(val tv: TextView) : RecyclerView.ViewHolder(tv)
 
-        /**
+    /**
          * 执行 onCreateViewHolder 方法。
          */
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SymbolViewHolder {
@@ -115,7 +117,7 @@ class SymbolPageFragment : Fragment() {
             return SymbolViewHolder(tv)
         }
 
-        /**
+    /**
          * 执行 onBindViewHolder 方法。
          */
         override fun onBindViewHolder(holder: SymbolViewHolder, position: Int) {
@@ -140,7 +142,7 @@ class SymbolPageFragment : Fragment() {
             }
         }
 
-        /**
+    /**
          * 执行 getItemCount 方法。
          */
         override fun getItemCount(): Int = items.size
