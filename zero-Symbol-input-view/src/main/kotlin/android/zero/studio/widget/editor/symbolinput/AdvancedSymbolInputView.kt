@@ -131,7 +131,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             SymbolDataManager.saveData(context, defaults)
         }
 
-        indicatorBar.submitGroups(groups)
+        indicatorBar.submitGroups(groups, uiSettings.indicatorStyle)
         bottomIndicator.submitCount(groups.size, uiSettings.indicatorStyle)
         pageAdapter.notifyDataSetChanged()
 
@@ -372,28 +372,48 @@ private class GroupIndicatorBar(
         addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
-    fun submitGroups(groups: List<SymbolGroup>) {
+    fun submitGroups(groups: List<SymbolGroup>, style: Int) {
         row.removeAllViews()
         groups.forEachIndexed { index, group ->
             val item = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(8), dp(6), dp(8), dp(6))
-                addView(TextView(context).apply {
+                setOnClickListener { onGroupClicked(index) }
+            }
+            if (style == 3) {
+                item.setPadding(dp(6), dp(8), dp(6), dp(8))
+                val line = View(context).apply {
+                    alpha = 0.55f
+                }
+                item.addView(line, LinearLayout.LayoutParams(dp(22), dp(3)).apply { gravity = Gravity.CENTER })
+                row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
+            } else {
+                item.setPadding(dp(8), dp(6), dp(8), dp(6))
+                item.addView(TextView(context).apply {
                     text = group.name
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
                 })
-                setOnClickListener { onGroupClicked(index) }
+                row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
             }
-            row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         }
     }
 
     fun setSelectedIndex(index: Int) {
         for (i in 0 until row.childCount) {
-            row.getChildAt(i).alpha = if (i == index) 1f else 0.6f
+            val child = row.getChildAt(i)
+            child.alpha = if (i == index) 1f else 0.6f
+            if (child is LinearLayout && child.childCount > 0 && child.getChildAt(0) is View && child.getChildAt(0) !is TextView) {
+                val line = child.getChildAt(0)
+                val selected = i == index
+                line.alpha = if (selected) 1f else 0.45f
+                line.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    cornerRadius = dp(2).toFloat()
+                    setColor(if (selected) 0xFFFFFFFF.toInt() else 0x99FFFFFF.toInt())
+                }
+            }
         }
         row.getChildAt(index)?.let { child ->
             val center = child.left + child.width / 2
