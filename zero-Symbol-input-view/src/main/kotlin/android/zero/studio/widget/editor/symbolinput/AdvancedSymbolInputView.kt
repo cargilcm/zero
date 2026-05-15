@@ -494,9 +494,12 @@ private class CompactPageIndicator(
     }
 
     fun applyReveal(fraction: Float, style: Int) {
-        visibility = if (style == 1 || style == 4) View.VISIBLE else View.GONE
-        layoutParams = layoutParams.apply { height = if (visibility == View.VISIBLE) dp(14) else 0 }
-        alpha = if (visibility == View.VISIBLE) fraction else 0f
+        val showCompact = style == 1 || style == 4
+        visibility = if (showCompact) View.VISIBLE else View.GONE
+        layoutParams = layoutParams.apply { height = if (showCompact) dp(14) else 0 }
+        // Compact indicators should remain visible at drawer bottom for these styles,
+        // instead of being tied to top-tab reveal progress.
+        alpha = if (showCompact) 1f else 0f
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
