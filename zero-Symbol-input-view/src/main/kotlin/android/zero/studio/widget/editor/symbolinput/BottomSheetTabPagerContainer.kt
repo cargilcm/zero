@@ -15,6 +15,9 @@ import com.google.android.material.tabs.TabLayoutMediator
  *
  * 该类用于兼容仍需要 `TabLayout + ViewPager2` 形态的场景，
  * 同时将布局改为纯代码创建，避免依赖外部 XML 结构。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
  */
 abstract class BottomSheetTabPagerContainer @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0

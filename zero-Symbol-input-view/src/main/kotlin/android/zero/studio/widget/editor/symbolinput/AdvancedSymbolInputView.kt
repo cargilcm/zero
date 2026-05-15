@@ -40,6 +40,9 @@ import kotlin.math.roundToInt
  * 1. 避免 XML 多层嵌套，改为轻量级代码布局；
  * 2. 将“折叠/展开高度”与网格行高统一到同一计算模型；
  * 3. 通过设置项控制固定行数、每行符号数以及分页切换体验。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
  */
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
@@ -337,6 +340,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
  * - 渲染分组标题；
  * - 选中态高亮与自动滚动居中；
  * - 展开过程中的显隐与位移动画。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
  */
 private class GroupIndicatorBar(
     context: Context,
@@ -417,6 +423,9 @@ private class GroupIndicatorBar(
 
 /**
  * 分页承载组件，职责为包装 `ViewPager` 并向外暴露最小化 API。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
  */
 private class SymbolPagerHost(context: Context) : ViewGroup(context) {
     private val pager = ViewPager(context).apply { overScrollMode = OVER_SCROLL_NEVER }
@@ -470,6 +479,9 @@ private class SymbolPagerHost(context: Context) : ViewGroup(context) {
  * - 固定每行符号数；
  * - 紧凑的行高/间距控制；
  * - 点击与长按动作分发。
+  *
+ * @author android_zero
+ * @github msmt2018/zero-Symbol-input-view
  */
 private class SymbolPageGridView(
     context: Context,
