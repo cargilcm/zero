@@ -202,7 +202,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 val dy = ev.rawY - initialY
                 val dx = ev.rawX - initialX
-                if (!isDragging && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                if (!isDragging && expandedHeightPx > collapsedHeightPx && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
                     isDragging = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
@@ -263,7 +263,12 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             pagerHost.layoutParams = pagerHost.layoutParams.apply { this.height = clamped }
             requestLayout()
         }
-        val fraction = (clamped - collapsedHeightPx).toFloat() / (expandedHeightPx - collapsedHeightPx).coerceAtLeast(1)
+        val isExpandable = expandedHeightPx > collapsedHeightPx
+        val fraction = if (isExpandable) {
+            (clamped - collapsedHeightPx).toFloat() / (expandedHeightPx - collapsedHeightPx)
+        } else {
+            1f
+        }
         applyIndicatorReveal(fraction)
     }
 
