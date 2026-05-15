@@ -10,6 +10,12 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
+/**
+ * 底部抽屉 + 分页容器的基础抽象组件。
+ *
+ * 该类用于兼容仍需要 `TabLayout + ViewPager2` 形态的场景，
+ * 同时将布局改为纯代码创建，避免依赖外部 XML 结构。
+ */
 abstract class BottomSheetTabPagerContainer @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
@@ -43,6 +49,7 @@ abstract class BottomSheetTabPagerContainer @JvmOverloads constructor(
         setExpansionFraction(0f)
     }
 
+    /** 根据抽屉滑动进度更新分页栏显隐效果。 */
     protected fun setExpansionFraction(fraction: Float) {
         val clamped = fraction.coerceIn(0f, 1f)
         if (clamped <= 0f) {
@@ -54,6 +61,7 @@ abstract class BottomSheetTabPagerContainer @JvmOverloads constructor(
         }
     }
 
+    /** 绑定并监听底部抽屉状态变化。 */
     open fun setupWithBottomSheet(rootView: View, bottomSheet: View, followView: View? = null) {
         val behavior = BottomSheetBehavior.from(bottomSheet)
         bottomSheetBehavior?.let { pb -> registeredBottomSheetCallback?.let { pc -> pb.removeBottomSheetCallback(pc) } }
@@ -83,10 +91,12 @@ abstract class BottomSheetTabPagerContainer @JvmOverloads constructor(
         registeredBottomSheetCallback = sheetCallback
     }
 
+    /** 页面恢复时将抽屉重置到折叠态。 */
     fun onHostResume() {
         bottomSheetBehavior?.state = BottomSheetBehavior.STATE_COLLAPSED
     }
 
+    /** 将标题列表绑定到 `TabLayout` 与 `ViewPager2`。 */
     protected fun bindTabs(titles: List<String>) {
         detachTabMediatorSafely()
         if (titles.isEmpty()) {

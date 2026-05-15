@@ -27,6 +27,20 @@ import kotlin.math.roundToInt
  *  ├─ GroupIndicatorBar(HorizontalScrollView > LinearLayout > (LinearLayout > TextView))
  *  └─ SymbolPagerHost(ViewGroup > ViewPager > SymbolPageGridView)
  */
+/**
+ * 高级符号输入控件（纯代码构建）。
+ *
+ * ## 架构
+ * - 顶层：`AdvancedSymbolInputView`（`ViewGroup`）
+ * - 分组指示器：`GroupIndicatorBar`（`HorizontalScrollView > LinearLayout > TextView`）
+ * - 分页容器：`SymbolPagerHost`（`ViewPager`）
+ * - 页内网格：`SymbolPageGridView`（自定义网格测量与布局）
+ *
+ * ## 设计目标
+ * 1. 避免 XML 多层嵌套，改为轻量级代码布局；
+ * 2. 将“折叠/展开高度”与网格行高统一到同一计算模型；
+ * 3. 通过设置项控制固定行数、每行符号数以及分页切换体验。
+ */
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -79,17 +93,27 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         applyIndicatorReveal(0f)
     }
 
+    /**
+     * 与旧调用链兼容的占位方法。
+     *
+     * 当前版本由控件内部管理展开/折叠，不再依赖外部 `BottomSheetBehavior`。
+     */
     fun setupWithBottomSheet(rootView: View, bottomSheet: View, followView: View? = null) = Unit
 
+    /** 绑定编辑器实例，用于执行符号插入动作。 */
     fun bindEditor(editor: CodeEditor) {
         this.editor = editor
     }
 
+    /** 页面恢复时按设置恢复抽屉展开状态。 */
     fun onHostResume() {
         val shouldExpand = uiSettings.rememberExpanded && SymbolDataManager.getLastExpanded(context)
         animateToHeight(if (shouldExpand) expandedHeightPx else collapsedHeightPx)
     }
 
+    /**
+     * 重新加载分组与样式配置，并刷新分页与指示器。
+     */
     fun refreshData() {
         uiSettings = SymbolDataManager.getUiSettings(context)
 
@@ -128,6 +152,14 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         super.onDetachedFromWindow()
     }
 
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val indicatorHeight = indicatorBar.layoutParams.height.coerceAtLeast(0)
@@ -142,6 +174,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         setMeasuredDimension(width, indicatorBar.measuredHeight + pagerHost.measuredHeight)
     }
 
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val width = r - l
         val indicatorHeight = indicatorBar.measuredHeight
@@ -235,6 +270,13 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         requestLayout()
     }
 
+    /**
+     * 依据当前配置与页面数据重新计算折叠/展开高度。
+     *
+     * - 折叠高度：严格按 `collapsedRows` 计算；
+     * - 展开高度：按当前页的真实行数计算；
+     * - 两者都使用同一网格高度公式，避免出现“设置 2 行却显示 3 行”的漂移问题。
+     */
     private fun recalculateHeights() {
         val collapsedRows = uiSettings.collapsedRows.coerceAtLeast(1)
         collapsedHeightPx = calculateGridHeight(collapsedRows)
@@ -288,6 +330,14 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 }
 
+/**
+ * 分组指示器组件。
+ *
+ * 使用横向滚动容器承载多个分组项，负责：
+ * - 渲染分组标题；
+ * - 选中态高亮与自动滚动居中；
+ * - 展开过程中的显隐与位移动画。
+ */
 private class GroupIndicatorBar(
     context: Context,
     private val onGroupClicked: (Int) -> Unit
@@ -340,6 +390,14 @@ private class GroupIndicatorBar(
         visibility = if (fraction <= 0f) View.INVISIBLE else View.VISIBLE
     }
 
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
@@ -347,6 +405,9 @@ private class GroupIndicatorBar(
         setMeasuredDimension(width, height)
     }
 
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         scroll.layout(0, 0, r - l, b - t)
     }
@@ -354,6 +415,9 @@ private class GroupIndicatorBar(
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
 }
 
+/**
+ * 分页承载组件，职责为包装 `ViewPager` 并向外暴露最小化 API。
+ */
 private class SymbolPagerHost(context: Context) : ViewGroup(context) {
     private val pager = ViewPager(context).apply { overScrollMode = OVER_SCROLL_NEVER }
     var onPageChanged: ((Int) -> Unit)? = null
@@ -376,6 +440,14 @@ private class SymbolPagerHost(context: Context) : ViewGroup(context) {
         pager.setCurrentItem(page, smooth)
     }
 
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
@@ -383,11 +455,22 @@ private class SymbolPagerHost(context: Context) : ViewGroup(context) {
         setMeasuredDimension(width, height)
     }
 
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         pager.layout(0, 0, r - l, b - t)
     }
 }
 
+/**
+ * 分页内符号网格组件。
+ *
+ * 采用自定义测量与布局逻辑，支持：
+ * - 固定每行符号数；
+ * - 紧凑的行高/间距控制；
+ * - 点击与长按动作分发。
+ */
 private class SymbolPageGridView(
     context: Context,
     private val onItemTriggered: (SymbolItem, Boolean) -> Unit
@@ -395,6 +478,7 @@ private class SymbolPageGridView(
 
     private var settings = SymbolUiSettings()
 
+    /** 更新页面渲染配置（行列、字体、交互策略等）。 */
     fun updateConfig(settings: SymbolUiSettings) {
         this.settings = settings
     }
@@ -403,6 +487,11 @@ private class SymbolPageGridView(
     private val itemVerticalGapPx: Int get() = dp(2)
     private val itemCellHeightPx: Int get() = dp(28)
 
+    /**
+     * 提交当前页符号列表并重建子视图。
+     *
+     * @param items 当前分组下用于展示的符号项集合。
+     */
     fun submit(items: List<SymbolItem>) {
         removeAllViews()
         setPadding(paddingLeft, dp(4), paddingRight, dp(4))
@@ -439,6 +528,14 @@ private class SymbolPageGridView(
         requestLayout()
     }
 
+    /**
+     * 计算网格尺寸。
+     *
+     * 关键点：
+     * - `cols` 来自设置中的每行符号数量；
+     * - 行高固定为 `itemCellHeightPx`；
+     * - 总高度 = 上下内边距 + 行高总和 + 行间距总和。
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val cols = settings.symbolsPerRow.coerceIn(1, 20)
@@ -457,6 +554,9 @@ private class SymbolPageGridView(
         setMeasuredDimension(width, totalHeight)
     }
 
+    /**
+     * 根据行列索引将符号项定位到对应单元格。
+     */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val cols = settings.symbolsPerRow.coerceIn(1, 20)
         val totalContentWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
