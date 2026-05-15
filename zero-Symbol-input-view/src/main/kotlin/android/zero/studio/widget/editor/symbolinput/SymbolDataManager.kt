@@ -5,7 +5,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /**
- * SymbolDataManager 的核心实现。
+ * 符号数据与配置管理器。
+ *
+ * 提供分组数据的读取/保存、UI 设置读取/持久化以及偏好项变更判定能力。
  *
  * @author android_zero
  * @github msmt2018/zero-Symbol-input-view
@@ -78,7 +80,7 @@ object SymbolDataManager {
     }
 
     /**
-     * 执行 saveUiSettings 方法。
+     * 持久化 UI 配置。
      */
     fun saveUiSettings(context: Context, settings: SymbolUiSettings) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

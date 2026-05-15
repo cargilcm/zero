@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import io.github.rosemoe.sora.widget.CodeEditor
 
 /**
- * SymbolInputViewModel 的核心实现。
+ * 符号输入页共享状态模型。
+ *
+ * 用于在 Fragment/Activity 间共享编辑器引用、回调与分组数据。
  *
  * @author android_zero
  * @github msmt2018/zero-Symbol-input-view
