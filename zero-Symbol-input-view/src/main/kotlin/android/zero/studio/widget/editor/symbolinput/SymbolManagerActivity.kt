@@ -866,6 +866,10 @@ class SymbolManagerActivity : AppCompatActivity() {
         lineItem.setOnClickListener { showLineSettingDialog() }
         content.addView(lineItem)
 
+        val indicatorItem = createEntry(getString(R.string.settings_indicator_title), indicatorStyleLabel(settings.indicatorStyle))
+        indicatorItem.setOnClickListener { showIndicatorStyleDialog() }
+        content.addView(indicatorItem)
+
         val rememberItem = createEntry(getString(R.string.settings_remember_title), getString(R.string.settings_remember_desc))
         val rememberSwitch = SwitchCompat(this).apply { isChecked = settings.rememberExpanded }
         (rememberItem as ViewGroup).addView(rememberSwitch)
@@ -985,6 +989,33 @@ class SymbolManagerActivity : AppCompatActivity() {
                 val textSize = editText.text.toString().toIntOrNull()?.coerceIn(12, 28) ?: settings.symbolTextSizeSp
                 SymbolDataManager.saveUiSettings(this, settings.copy(symbolTextSizeSp = textSize))
                 pagerAdapter.notifyDataSetChanged()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun indicatorStyleOptions(): List<String> = listOf(
+        getString(R.string.settings_style_standard),
+        getString(R.string.settings_style_simple),
+        getString(R.string.settings_style_hidden),
+        getString(R.string.settings_style_top_line),
+        getString(R.string.settings_style_block)
+    )
+
+    private fun indicatorStyleLabel(style: Int): String {
+        val options = indicatorStyleOptions()
+        return options.getOrElse(style.coerceIn(0, options.lastIndex)) { options.first() }
+    }
+
+    private fun showIndicatorStyleDialog() {
+        val settings = SymbolDataManager.getUiSettings(this)
+        val options = indicatorStyleOptions().toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.settings_indicator_title)
+            .setSingleChoiceItems(options, settings.indicatorStyle.coerceIn(0, options.lastIndex)) { dialog, which ->
+                SymbolDataManager.saveUiSettings(this, settings.copy(indicatorStyle = which))
+                pagerAdapter.notifyDataSetChanged()
+                dialog.dismiss()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()

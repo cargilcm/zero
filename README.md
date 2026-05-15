@@ -1,81 +1,111 @@
-# zero-Symbol-input-view Documentation (English)
+# zero-Symbol-input-view
 
-[简体中文](README_CN.md)
+`zero-Symbol-input-view` is an Android symbol-input module for code and text editing apps.
+It provides a production-ready symbol drawer + management system built around **Sora CodeEditor**,
+with support for grouped paging, gesture-controlled drawer states, configurable indicators,
+and import/export of symbol configuration JSON.
 
-## 1. Overview
-
-`zero-Symbol-input-view` is a symbol-input enhancement module for code/text editing scenarios.
-It is designed around Sora `CodeEditor` and provides:
-
-- grouped symbol panel with paging
-- gesture-driven expandable/collapsible symbol drawer
-- configurable group indicator styles (Standard / Minimal Dot-Capsule / Hidden / Top Line / Block)
-- symbol manager screen for CRUD/import/export/reorder/batch actions
-- macro-based insertion (`$$`, `$S`, `$E`, `$T`)
-
-![page preview](zero-Symbol-input-view/ResizedImage_2026-04-27_12-59-55_6518.png)
----
-
-## 2. Key Features
-
-### 2.1 AdvancedSymbolInputView
-
-- bind directly to `CodeEditor`
-- drag gesture for drawer expansion/collapse
-- remember expanded state + remember last symbol page
-- optional uniform group height to reduce page-jump visual jitter
-- switchable group indicator style
-- short-press and long-press actions per symbol item
-
-### 2.2 Data & Settings
-
-- persisted via SharedPreferences
-- safe fallback defaults injected on first run (`SymbolDefaults`)
-- centralized UI settings read/write through `SymbolDataManager`
-
-### 2.3 Symbol Manager
-
-- add/delete/rename groups
-- add/edit/copy/move/delete symbols
-- batch operations
-- import/export from clipboard and file
-- Material-style dialogs and input controls
-- Supports direct import and use of symbol configuration JSON files exported from the MT Manager symbol input toolbar management interface.
-
-### 2.4 Macro Insertion
-
-Supported macros:
-
-- `$$`: literal `$`
-- `$S`: selection start marker after insertion
-- `$E`: selection end marker after insertion
-- `$T`: currently selected text
-
-Example: `{$S$T$E}`
+![preview](zero-Symbol-input-view/ResizedImage_2026-04-27_12-59-55_6518.png)
 
 ---
 
-## 3. Strengths
+## 1) Purpose
 
-1. Faster editing workflow on mobile.
-2. Highly configurable grouping/action model.
-3. Better continuity with persisted UI state.
-4. Extensible template insertion via macros.
-5. Easy integration as a view + manager activity module.
+This module is designed for scenarios where users frequently input symbols, templates,
+and editing actions (e.g., cursor movement, line actions, clipboard actions) while writing code.
+
+Compared with a plain soft keyboard symbol row, this module offers:
+
+- multi-group symbol organization
+- tap/long-press dual behavior per symbol
+- stable drawer interaction (collapse/expand + drag)
+- visual group indicators (tab/line/dot/block/hidden)
+- full symbol data lifecycle management
 
 ---
 
-## 4. Integration Guide
+## 2) Core Capabilities
 
-## 4.1 Add module dependency
+### 2.1 Runtime Input Drawer (`AdvancedSymbolInputView`)
 
-`settings.gradle(.kts)`:
+- Grouped symbol pages with horizontal switching
+- Adjustable collapsed/expanded layout model
+- Gesture-based expand/collapse behavior
+- Per-symbol click and long-click action dispatch
+- Remembered expanded state and remembered last page (optional)
+- Multiple indicator styles:
+  - Standard tab indicator
+  - Minimal compact dots (bottom)
+  - Hidden indicator
+  - Top line indicator
+  - Block indicator (bottom)
+
+### 2.2 Symbol Management (`SymbolManagerActivity`)
+
+- Group CRUD (add/edit/delete/reorder)
+- Symbol CRUD (add/edit/copy/move/delete)
+- Batch operations
+- Import/export via clipboard and file
+- Settings panel for rows, per-row count, indicator style, behavior toggles
+
+### 2.3 Action Execution Model
+
+Each symbol can map to:
+
+- short-press action
+- optional long-press action
+- action payload text (insert content / custom text)
+
+Action execution is delegated through `SymbolActionExecutor` to the bound editor instance.
+
+---
+
+## 3) Architecture & Design
+
+### 3.1 High-level Architecture
+
+- **View layer**
+  - `AdvancedSymbolInputView`
+  - `GroupIndicatorBar`
+  - compact bottom indicator view
+  - `SymbolPageGridView`
+- **Data/model layer**
+  - `SymbolGroup`, `SymbolItem`, `SymbolUiSettings`
+- **Persistence layer**
+  - `SymbolDataManager` (SharedPreferences + JSON)
+- **Behavior layer**
+  - `SymbolActionExecutor` (editor action routing)
+
+### 3.2 Design Principles
+
+1. **Data-driven UI**: group/symbol rendering is generated from persisted JSON data.
+2. **Interaction consistency**: drawer height uses unified row-height formulas.
+3. **Extensibility**: indicator styles and symbol actions are decoupled from core paging.
+4. **Compatibility**: keeps legacy integration points (e.g., `followSystemIme`) while using the new internal drawer model.
+
+### 3.3 Indicator Design
+
+Indicator rendering is style-based:
+
+- tab-like styles render in the top indicator bar
+- compact styles render at the drawer bottom
+- hidden style suppresses indicator UI
+
+This avoids forcing a single indicator paradigm for all UX requirements.
+
+---
+
+## 4) Integration
+
+### 4.1 Gradle
+
+`settings.gradle.kts`
 
 ```kotlin
 include(":zero-Symbol-input-view")
 ```
 
-`app/build.gradle(.kts)`:
+`build.gradle.kts`
 
 ```kotlin
 dependencies {
@@ -83,73 +113,68 @@ dependencies {
 }
 ```
 
-### 4.2 Add view in layout
+### 4.2 Layout
 
 ```xml
 <android.zero.studio.widget.editor.symbolinput.AdvancedSymbolInputView
     android:id="@+id/symbol_input_view"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"/>
+    android:layout_height="wrap_content" />
 ```
 
-### 4.3 Bind editor and optional manager entry
+### 4.3 Activity Usage
 
 ```kotlin
-val editor = findViewById<io.github.rosemoe.sora.widget.CodeEditor>(R.id.editor)
 val symbolInputView = findViewById<android.zero.studio.widget.editor.symbolinput.AdvancedSymbolInputView>(R.id.symbol_input_view)
+val editor = findViewById<io.github.rosemoe.sora.widget.CodeEditor>(R.id.editor)
 
 symbolInputView.bindEditor(editor)
-
 symbolInputView.onOpenManagerListener = {
     startActivity(Intent(this, android.zero.studio.widget.editor.symbolinput.SymbolManagerActivity::class.java))
 }
-```
 
-### 4.4 Lifecycle recommendation
-
-```kotlin
 override fun onResume() {
     super.onResume()
     symbolInputView.onHostResume()
 }
-```
 
-Manual refresh when data/settings changed externally:
-
-```kotlin
+// reload after settings/data changes
 symbolInputView.refreshData()
 ```
 
 ---
 
-## 5. IME Follow Property (`followSystemIme`)
+## 5) Data Interoperability
 
-`AdvancedSymbolInputView` still exposes `followSystemIme: Boolean` for legacy compatibility.
+The module supports JSON import/export and is compatible with symbol-config workflows
+commonly used by MT-style editor toolbars.
 
-- Current status: available as a compatibility field.
-- Behavior note: currently it is a no-op compatibility placeholder and does not actively drive layout behavior by itself.
+Recommended practice:
 
-Use it only if your host app depends on older API shape compatibility.
-
----
-
-## 6. Recommended Best Practices
-
-- Keep drawer collapsed by default for better initial editing focus.
-- Enable remember-last-page for continuous symbol workflows.
-- Use `$S/$E/$T` in frequent templates to reduce manual reselection.
-- For many groups, use Minimal (dot-capsule) or Hidden indicator style.
-- Export symbol configs regularly for team/device consistency.
+- version and back up symbol JSON files
+- keep shared team presets under VCS
+- validate imported data before production rollout
 
 ---
 
-## 7. FAQ
+## 6) Project Structure (Key Files)
 
-### Q1. Does Hidden indicator disable page switching?
-No. It only hides visual indicators; paging and tab switching still work.
+```text
+zero-Symbol-input-view/
+└── src/main/
+    ├── kotlin/android/zero/studio/widget/editor/symbolinput/
+    │   ├── AdvancedSymbolInputView.kt
+    │   ├── SymbolManagerActivity.kt
+    │   ├── SymbolData.kt
+    │   ├── SymbolDataManager.kt
+    │   └── SymbolActionExecutor.kt
+    └── res/
+```
 
-### Q2. Why are default groups present on first launch?
-The module injects and caches fallback defaults to guarantee availability.
+---
 
-### Q3. Can macros be combined?
-Yes. `$$`, `$S`, `$E`, `$T` can be mixed in one insertion template.
+## 7) Compatibility Notes
+
+- `AdvancedSymbolInputView.followSystemIme` is retained for legacy integration compatibility.
+- If you migrate from an older bottom-sheet based implementation, call `refreshData()` after migration.
+

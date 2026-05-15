@@ -51,6 +51,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 ) : ViewGroup(context, attrs, defStyleAttr) {
 
     private val indicatorBar = GroupIndicatorBar(context) { index -> pagerHost.setCurrentPage(index, true) }
+    private val bottomIndicator = CompactPageIndicator(context) { index -> pagerHost.setCurrentPage(index, true) }
     private val pagerHost = SymbolPagerHost(context)
     private val pageAdapter = SymbolPagerAdapter()
 
@@ -81,11 +82,13 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     init {
-        addView(indicatorBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(44)))
+        addView(indicatorBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(26)))
         addView(pagerHost, LayoutParams(LayoutParams.MATCH_PARENT, collapsedHeightPx))
+        addView(bottomIndicator, LayoutParams(LayoutParams.MATCH_PARENT, dp(14)))
         pagerHost.bindAdapter(pageAdapter)
         pagerHost.onPageChanged = { page ->
             indicatorBar.setSelectedIndex(page)
+            bottomIndicator.setSelectedIndex(page)
             if (uiSettings.rememberLastPage && lastSavedPageIndex != page) {
                 lastSavedPageIndex = page
                 SymbolDataManager.setLastPageIndex(context, page)
@@ -128,7 +131,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             SymbolDataManager.saveData(context, defaults)
         }
 
-        indicatorBar.submitGroups(groups)
+        indicatorBar.submitGroups(groups, uiSettings.indicatorStyle)
+        bottomIndicator.submitCount(groups.size, uiSettings.indicatorStyle)
         pageAdapter.notifyDataSetChanged()
 
         if (groups.isNotEmpty()) {
@@ -137,6 +141,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             } else 0
             pagerHost.setCurrentPage(target, false)
             indicatorBar.setSelectedIndex(target)
+            bottomIndicator.setSelectedIndex(target)
             lastSavedPageIndex = target
         }
 
@@ -174,7 +179,10 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             MeasureSpec.makeMeasureSpec(pagerHeight, MeasureSpec.EXACTLY)
         )
 
-        setMeasuredDimension(width, indicatorBar.measuredHeight + pagerHost.measuredHeight)
+        val bottomHeight = bottomIndicator.layoutParams.height.coerceAtLeast(0)
+        measureChild(bottomIndicator, widthMeasureSpec, MeasureSpec.makeMeasureSpec(bottomHeight, MeasureSpec.EXACTLY))
+
+        setMeasuredDimension(width, indicatorBar.measuredHeight + pagerHost.measuredHeight + bottomIndicator.measuredHeight)
     }
 
     /**
@@ -184,7 +192,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         val width = r - l
         val indicatorHeight = indicatorBar.measuredHeight
         indicatorBar.layout(0, 0, width, indicatorHeight)
-        pagerHost.layout(0, indicatorHeight, width, indicatorHeight + pagerHost.measuredHeight)
+        val pagerBottom = indicatorHeight + pagerHost.measuredHeight
+        pagerHost.layout(0, indicatorHeight, width, pagerBottom)
+        bottomIndicator.layout(0, pagerBottom, width, pagerBottom + bottomIndicator.measuredHeight)
     }
 
     override fun generateLayoutParams(attrs: AttributeSet): LayoutParams = MarginLayoutParams(context, attrs)
@@ -202,7 +212,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 val dy = ev.rawY - initialY
                 val dx = ev.rawX - initialX
-                if (!isDragging && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                if (!isDragging && expandedHeightPx > collapsedHeightPx && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
                     isDragging = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
@@ -269,7 +279,8 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
     private fun applyIndicatorReveal(fraction: Float) {
         val reveal = ((fraction - 0.08f) / 0.47f).coerceIn(0f, 1f)
-        indicatorBar.applyReveal(reveal, dp(44))
+        indicatorBar.applyReveal(reveal, dp(26), uiSettings.indicatorStyle)
+        bottomIndicator.applyReveal(reveal, uiSettings.indicatorStyle)
         requestLayout()
     }
 
@@ -285,9 +296,10 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         collapsedHeightPx = calculateGridHeight(collapsedRows)
 
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
-        val currentGroup = groups.getOrNull(pagerHost.currentPage)
-        val pageRows = if (currentGroup == null) collapsedRows else (currentGroup.items.size + cols - 1) / cols
-        expandedHeightPx = calculateGridHeight(pageRows.coerceAtLeast(collapsedRows))
+        val maxPageRows = groups.maxOfOrNull { group ->
+            ((group.items.size + cols - 1) / cols).coerceAtLeast(1)
+        } ?: collapsedRows
+        expandedHeightPx = calculateGridHeight(maxPageRows.coerceAtLeast(collapsedRows))
 
         updatePagerHeight(pagerHost.layoutParams.height.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
@@ -360,28 +372,48 @@ private class GroupIndicatorBar(
         addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
-    fun submitGroups(groups: List<SymbolGroup>) {
+    fun submitGroups(groups: List<SymbolGroup>, style: Int) {
         row.removeAllViews()
         groups.forEachIndexed { index, group ->
             val item = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(8), dp(6), dp(8), dp(6))
-                addView(TextView(context).apply {
+                setOnClickListener { onGroupClicked(index) }
+            }
+            if (style == 3) {
+                item.setPadding(dp(6), dp(8), dp(6), dp(8))
+                val line = View(context).apply {
+                    alpha = 0.55f
+                }
+                item.addView(line, LinearLayout.LayoutParams(dp(22), dp(3)).apply { gravity = Gravity.CENTER })
+                row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
+            } else {
+                item.setPadding(dp(8), dp(6), dp(8), dp(6))
+                item.addView(TextView(context).apply {
                     text = group.name
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
                 })
-                setOnClickListener { onGroupClicked(index) }
+                row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
             }
-            row.addView(item, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         }
     }
 
     fun setSelectedIndex(index: Int) {
         for (i in 0 until row.childCount) {
-            row.getChildAt(i).alpha = if (i == index) 1f else 0.6f
+            val child = row.getChildAt(i)
+            child.alpha = if (i == index) 1f else 0.6f
+            if (child is LinearLayout && child.childCount > 0 && child.getChildAt(0) is View && child.getChildAt(0) !is TextView) {
+                val line = child.getChildAt(0)
+                val selected = i == index
+                line.alpha = if (selected) 1f else 0.45f
+                line.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    cornerRadius = dp(2).toFloat()
+                    setColor(if (selected) 0xFFFFFFFF.toInt() else 0x99FFFFFF.toInt())
+                }
+            }
         }
         row.getChildAt(index)?.let { child ->
             val center = child.left + child.width / 2
@@ -389,7 +421,12 @@ private class GroupIndicatorBar(
         }
     }
 
-    fun applyReveal(fraction: Float, fullHeight: Int) {
+    fun applyReveal(fraction: Float, fullHeight: Int, style: Int) {
+        if (style == 1 || style == 4 || style == 2) {
+            visibility = View.GONE
+            layoutParams = layoutParams.apply { height = 0 }
+            return
+        }
         alpha = fraction
         translationY = (1f - fraction) * -6f * resources.displayMetrics.density
         layoutParams = layoutParams.apply { height = (fullHeight * fraction).roundToInt() }
@@ -416,6 +453,74 @@ private class GroupIndicatorBar(
      */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         scroll.layout(0, 0, r - l, b - t)
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
+}
+
+
+private class CompactPageIndicator(
+    context: Context,
+    private val onItemClicked: (Int) -> Unit
+) : ViewGroup(context) {
+
+    private var style: Int = 2
+
+    fun submitCount(count: Int, style: Int) {
+        this.style = style
+        removeAllViews()
+        if (style != 1 && style != 4) return
+        repeat(count) { index ->
+            addView(View(context).apply {
+                setOnClickListener { onItemClicked(index) }
+            }, LayoutParams(dp(8), dp(8)))
+        }
+    }
+
+    fun setSelectedIndex(index: Int) {
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            val selected = i == index
+            val size = if (selected) dp(8) else dp(6)
+            child.layoutParams = child.layoutParams.apply { width = size; height = size }
+            child.alpha = if (selected) 1f else 0.55f
+            val color = if (selected) 0xFFFFFFFF.toInt() else 0x99FFFFFF.toInt()
+            child.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = if (style == 1) size / 2f else dp(1).toFloat()
+                setColor(color)
+            }
+        }
+    }
+
+    fun applyReveal(fraction: Float, style: Int) {
+        val showCompact = style == 1 || style == 4
+        visibility = if (showCompact) View.VISIBLE else View.GONE
+        layoutParams = layoutParams.apply { height = if (showCompact) dp(14) else 0 }
+        // Compact indicators should remain visible at drawer bottom for these styles,
+        // instead of being tied to top-tab reveal progress.
+        alpha = if (showCompact) 1f else 0f
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            measureChild(c, MeasureSpec.makeMeasureSpec(dp(8), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(8), MeasureSpec.EXACTLY))
+        }
+        setMeasuredDimension(width, h)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val total = childCount * dp(8) + (childCount - 1).coerceAtLeast(0) * dp(6)
+        var left = ((r - l - total) / 2).coerceAtLeast(0)
+        val top = ((b - t - dp(8)) / 2).coerceAtLeast(0)
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            c.layout(left, top, left + c.measuredWidth, top + c.measuredHeight)
+            left += c.measuredWidth + dp(6)
+        }
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
