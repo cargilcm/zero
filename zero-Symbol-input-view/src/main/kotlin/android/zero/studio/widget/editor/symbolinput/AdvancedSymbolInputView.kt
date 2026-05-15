@@ -202,7 +202,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 val dy = ev.rawY - initialY
                 val dx = ev.rawX - initialX
-                if (!isDragging && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                if (!isDragging && expandedHeightPx > collapsedHeightPx && kotlin.math.abs(dy) > touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
                     isDragging = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
@@ -285,9 +285,10 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         collapsedHeightPx = calculateGridHeight(collapsedRows)
 
         val cols = uiSettings.symbolsPerRow.coerceIn(1, 20)
-        val currentGroup = groups.getOrNull(pagerHost.currentPage)
-        val pageRows = if (currentGroup == null) collapsedRows else (currentGroup.items.size + cols - 1) / cols
-        expandedHeightPx = calculateGridHeight(pageRows.coerceAtLeast(collapsedRows))
+        val maxPageRows = groups.maxOfOrNull { group ->
+            ((group.items.size + cols - 1) / cols).coerceAtLeast(1)
+        } ?: collapsedRows
+        expandedHeightPx = calculateGridHeight(maxPageRows.coerceAtLeast(collapsedRows))
 
         updatePagerHeight(pagerHost.layoutParams.height.coerceIn(collapsedHeightPx, expandedHeightPx))
     }
