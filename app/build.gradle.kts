@@ -23,9 +23,9 @@
  ******************************************************************************/
 
 plugins {
-   // id("com.android.application")
+    id("com.android.application")
 	alias(libs.plugins.android.library)
-    id("org.jetbrains.kotlin.android") 
+    //id("org.jetbrains.kotlin.android") 
 }
 
 android {
