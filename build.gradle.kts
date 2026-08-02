@@ -22,7 +22,6 @@
  *     additional information or have any questions
  ******************************************************************************/
 
-
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.dsl.CommonExtension
 import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
@@ -111,27 +110,4 @@ subprojects {
 
 tasks.register<Delete>("clean").configure {
     delete(rootProject.layout.buildDirectory)
-}
-android {
-    // ...
-    buildFeatures {
-        compose = true
-    }
-    
-    // If using Kotlin < 2.0 without the new Compose compiler plugin:
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14" // Use your project's matching version
-    }
-}
-
-dependencies {
-    // Jetpack Compose dependencies required for UI primitives, Layouts, and Modifiers
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
-    implementation(composeBom)
-
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-
-    // ... your existing dependencies block content ...
 }

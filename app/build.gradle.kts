@@ -24,6 +24,8 @@
 
 plugins {
     id("com.android.application")
+	alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)    
 }
 
 android {
@@ -33,6 +35,14 @@ android {
         applicationId = "io.github.rosemoe.sora.app"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    buildFeatures {
+            compose = true
+        }
+        
+        composeOptions {
+            kotlinCompilerExtensionVersion = "1.5.14"
+        }
 
     signingConfigs {
         AppSigning.getAppSigningConfigOptional(project)
@@ -120,7 +130,12 @@ dependencies {
     // Lua language server
     implementation(fileTree("dir" to "libs", "includes" to listOf("*.jar")))
     implementation(libs.lsp4j)
+val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(composeBom)
 
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
     debugImplementation(libs.leakcanary)
     testImplementation(libs.junit)
     testImplementation(libs.tests.google.truth)
