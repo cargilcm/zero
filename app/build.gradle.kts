@@ -25,7 +25,7 @@
 plugins {
     id("com.android.application")
 	alias(libs.plugins.android.library)
-    alias(libs.plugins.findPlugin("kotlin.android").get())   
+    id("org.jetbrains.kotlin.android") 
 }
 
 android {
