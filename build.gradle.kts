@@ -30,84 +30,63 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidExtension
 
 plugins {
-    id("build-logic.root-project")
-    alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.publish) apply false
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    // If using Kotlin 2.0+, apply the Compose Compiler plugin:
+    // alias(libs.plugins.compose.compiler)
 }
 
-buildscript {
-    dependencies {
-        classpath(libs.kotlin.plugin)
+android {
+    namespace = "android.zero.studio.widget.editor.symbolinput"
+    compileSdk = 34 // Match your root compileSdk version
+
+    defaultConfig {
+        minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
     }
-}
 
-val highApiProjects = arrayOf("editor-lsp")
-
-fun Project.configureAndroidAndKotlin() {
-    extensions.findByType<CommonExtension>()?.apply {
-        compileSdk { version = release(Versions.compileSdkVersion) }
-        buildToolsVersion = Versions.buildToolsVersion
-
-        defaultConfig.apply {
-            minSdk = if (highApiProjects.contains(this@configureAndroidAndKotlin.name)) {
-                Versions.minSdkVersionHighApi
-            } else {
-                Versions.minSdkVersion
-            }
-        }
-
-        compileOptions.apply {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
-    extensions.findByType<ApplicationExtension>()?.apply {
-        defaultConfig {
-            targetSdk = Versions.targetSdkVersion
-            versionCode = Versions.versionCode
-            versionName = Versions.appVersionName
-        }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
-    extensions.findByType<KotlinAndroidExtension>()?.apply {
-        compilerOptions {
-            languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3
-            jvmTarget = JvmTarget.JVM_17
-        }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    // Only needed if using Kotlin < 2.0 (Kotlin 1.9.x and below):
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14" 
     }
 }
 
-subprojects {
-    group = "io.github.rosemoe"
-    version = Versions.artifactVersion
+dependencies {
+    // 1. Compose Bill of Materials (BOM) to manage versions centrally
+    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
 
-    plugins.withId("com.android.application") {
-        configureAndroidAndKotlin()
-    }
-    plugins.withId("com.android.library") {
-        configureAndroidAndKotlin()
-    }
+    // 2. Core Compose Libraries (Resolves Foundation, Column, LazyRow, Modifier, etc.)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
 
-    plugins.withId("com.vanniktech.maven.publish.base") {
-        configure<MavenPublishBaseExtension> {
-            pomFromGradleProperties()
-            publishToMavenCentral()
-            signAllPublications()
-            if ("editor-bom" != this@subprojects.name) {
-                configure(
-                    AndroidSingleVariantLibrary(
-                        variant = "release",
-                        sourcesJar = true,
-                        publishJavadocJar = false
-                    )
-                )
-            }
-        }
-    }
-}
-
-tasks.register<Delete>("clean").configure {
-    delete(rootProject.layout.buildDirectory)
+    // 3. Tooling Support (Optional, for previews inside IDEs)
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }
