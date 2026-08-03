@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+//@file:OptIn(ExperimentalFoundationApi::class)
 package android.zero.studio.widget.editor.symbolinput
 
 import androidx.compose.animation.core.animateDpAsState
