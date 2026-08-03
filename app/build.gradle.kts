@@ -24,7 +24,7 @@
 
 plugins {
     id("com.android.application")
-//	alias(libs.plugins.android.library)
+	alias(libs.plugins.android.library)
     //id("org.jetbrains.kotlin.android") 
 }
 
@@ -40,10 +40,10 @@ android {
             compose = true
         }
         
-        composeOptions {
+       /* composeOptions {
             kotlinCompilerExtensionVersion = "1.5.14"
         }
-
+*/
     signingConfigs {
         AppSigning.getAppSigningConfigOptional(project)
             .onSuccess {
