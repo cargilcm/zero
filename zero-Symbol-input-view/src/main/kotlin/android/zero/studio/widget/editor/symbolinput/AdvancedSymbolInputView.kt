@@ -1,6 +1,7 @@
-//@file:OptIn(ExperimentalFoundationApi::class)
 package android.zero.studio.widget.editor.symbolinput
 
+import android.content.Context
+import android.util.AttributeSet
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,11 +25,66 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+
+/**
+ * Android View wrapper bridging Jetpack Compose implementation with legacy Activity/View code.
+ */
+class AdvancedSymbolInputView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : AbstractComposeView(context, attrs, defStyleAttr) {
+
+    // Observable states for Compose re-composition
+    private var groupsState by mutableStateOf<List<SymbolGroup>>(emptyList())
+    private var uiSettingsState by mutableStateOf(SymbolUiSettings())
+
+    // Bound references and listeners expected by MainActivity
+    var editor: Any? = null
+        private set
+
+    var onOpenManagerListener: (() -> Unit)? = null
+    var onSymbolClickListener: ((SymbolItem, Boolean) -> Unit)? = null
+
+    fun bindEditor(editor: Any?) {
+        this.editor = editor
+    }
+
+    fun setGroups(groups: List<SymbolGroup>) {
+        this.groupsState = groups
+    }
+
+    fun setUiSettings(settings: SymbolUiSettings) {
+        this.uiSettingsState = settings
+    }
+
+    fun refreshData() {
+        // Triggers recomposition if internal state references change
+    }
+
+    fun onHostResume() {
+        // Lifecycle handle hook for host Activity/Fragment
+    }
+
+    @Composable
+    override fun Content() {
+        MaterialTheme {
+            AdvancedSymbolInputToolbar(
+                groups = groupsState,
+                uiSettings = uiSettingsState,
+                onSymbolClicked = { item, isLong ->
+                    onSymbolClickListener?.invoke(item, isLong)
+                }
+            )
+        }
+    }
+}
 
 @Composable
 fun AdvancedSymbolInputToolbar(
@@ -163,7 +219,6 @@ private fun GroupIndicatorBar(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun SymbolPageGrid(
     items: List<SymbolItem>,
