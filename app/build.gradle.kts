@@ -26,7 +26,7 @@ plugins {
     id("com.android.application")
 	//alias(libs.plugins.android.library)
     //id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose") 
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
 }
 
 android {
