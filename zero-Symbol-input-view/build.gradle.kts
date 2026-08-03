@@ -11,6 +11,11 @@ android {
             compose = true // Tells AGP to enable Compose compilation hooks
         }
 }
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=androidx.compose.foundation.ExperimentalFoundationApi")
+    }
+}
 
 dependencies {
     implementation("com.google.android.material:material:1.9.0")
