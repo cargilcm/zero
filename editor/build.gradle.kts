@@ -25,6 +25,7 @@
 plugins {
     id("com.android.library")
     id("com.vanniktech.maven.publish.base")
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
 }
 
 android {
@@ -34,7 +35,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
-
+	buildFeatures {
+	        compose = true // Tells AGP to enable Compose compilation hooks
+	 }
+	    
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -52,4 +56,11 @@ dependencies {
     testImplementation(libs.tests.robolectric)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso)
+	val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(composeBom)
+
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+}
 }
