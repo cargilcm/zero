@@ -1,3 +1,5 @@
+package android.zero.studio.widget.editor.symbolinput
+
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
