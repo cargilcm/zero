@@ -19,7 +19,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,20 +34,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-/**
- * Android View wrapper bridging Jetpack Compose implementation with legacy Activity/View code.
- */
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : AbstractComposeView(context, attrs, defStyleAttr) {
 
-    // Observable states for Compose re-composition
-    private var groupsState by mutableStateOf<List<SymbolGroup>>(emptyList())
+    // Default symbols to populate immediately if non-empty lists aren't passed yet
+    private val defaultSymbols = listOf(
+        SymbolItem("←", shortText = "←"), SymbolItem("↑", shortText = "↑"),
+        SymbolItem("→", shortText = "→"), SymbolItem("⇥", shortText = "\t"),
+        SymbolItem("'", shortText = "'"), SymbolItem(".", shortText = "."),
+        SymbolItem(",", shortText = ","), SymbolItem("/", shortText = "/"),
+        SymbolItem("//", shortText = "//"), SymbolItem("↓", shortText = "↓"),
+        SymbolItem(":", shortText = ":"), SymbolItem(";", shortText = ";"),
+        SymbolItem("#", shortText = "#"), SymbolItem("+", shortText = "+"),
+        SymbolItem("-", shortText = "-"), SymbolItem("*", shortText = "*"),
+        SymbolItem("=", shortText = "="), SymbolItem("|", shortText = "|"),
+        SymbolItem("_", shortText = "_"), SymbolItem("(", shortText = "("),
+        SymbolItem(")", shortText = ")"), SymbolItem("\"", shortText = "\""),
+        SymbolItem("'", shortText = "'"), SymbolItem("{", shortText = "{"),
+        SymbolItem("}", shortText = "}"), SymbolItem("(", shortText = "("),
+        SymbolItem(")", shortText = ")"), SymbolItem("[", shortText = "["),
+        SymbolItem("]", shortText = "]"), SymbolItem("<", shortText = "<"),
+        SymbolItem(">", shortText = ">"), SymbolItem("\\", shortText = "\\"),
+        SymbolItem("$", shortText = "$"), SymbolItem("&", shortText = "&"),
+        SymbolItem("/*", shortText = "/*"), SymbolItem("*/", shortText = "*/"),
+        SymbolItem("settings", shortText = "")
+    )
+
+    private var groupsState by mutableStateOf(
+        listOf(SymbolGroup("commonlyUsed", defaultSymbols))
+    )
     private var uiSettingsState by mutableStateOf(SymbolUiSettings())
 
-    // Bound references and listeners expected by MainActivity
     var editor: Any? = null
         private set
 
@@ -57,7 +79,9 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     fun setGroups(groups: List<SymbolGroup>) {
-        this.groupsState = groups
+        if (groups.isNotEmpty()) {
+            this.groupsState = groups
+        }
     }
 
     fun setUiSettings(settings: SymbolUiSettings) {
@@ -65,23 +89,30 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     }
 
     fun refreshData() {
-        // Triggers recomposition if internal state references change
+        // Re-composition triggers automatically on state update
     }
 
-    fun onHostResume() {
-        // Lifecycle handle hook for host Activity/Fragment
-    }
+    fun onHostResume() {}
 
     @Composable
     override fun Content() {
-        MaterialTheme {
-            AdvancedSymbolInputToolbar(
-                groups = groupsState,
-                uiSettings = uiSettingsState,
-                onSymbolClicked = { item, isLong ->
-                    onSymbolClickListener?.invoke(item, isLong)
-                }
-            )
+        MaterialTheme(colorScheme = darkColorScheme(surface = Color(0xFFF9F6F0))) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFAF7F2)
+            ) {
+                AdvancedSymbolInputToolbar(
+                    groups = groupsState,
+                    uiSettings = uiSettingsState,
+                    onSymbolClicked = { item, isLong ->
+                        if (item.display == "settings") {
+                            onOpenManagerListener?.invoke()
+                        } else {
+                            onSymbolClickListener?.invoke(item, isLong)
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -98,12 +129,10 @@ fun AdvancedSymbolInputToolbar(
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { groups.size })
 
-    // Expanded / Collapsed state management
     var isExpanded by remember { mutableStateOf(uiSettings.rememberExpanded) }
 
-    // Grid dimension calculations
-    val cellHeight = 28.dp
-    val gap = 2.dp
+    val cellHeight = 36.dp
+    val gap = 4.dp
     val padding = 4.dp
     val collapsedRows = uiSettings.collapsedRows.coerceAtLeast(1)
 
@@ -120,7 +149,7 @@ fun AdvancedSymbolInputToolbar(
         label = "DrawerHeightAnimation"
     )
 
-    val dragSensitivity = with(LocalDensity.current) { 48.dp.toPx() }
+    val dragSensitivity = with(LocalDensity.current) { 32.dp.toPx() }
 
     Column(
         modifier = modifier
@@ -133,7 +162,7 @@ fun AdvancedSymbolInputToolbar(
                 }
             )
     ) {
-        // 1. Top Indicator Bar (Group Selection)
+        // Top Group Indicator Bar
         GroupIndicatorBar(
             groups = groups,
             selectedIndex = pagerState.currentPage,
@@ -143,7 +172,7 @@ fun AdvancedSymbolInputToolbar(
             }
         )
 
-        // 2. Pager Content Container
+        // Symbol Grid Container
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -158,7 +187,7 @@ fun AdvancedSymbolInputToolbar(
             )
         }
 
-        // 3. Bottom Compact Indicator
+        // Bottom Page Indicator
         if (uiSettings.indicatorStyle == 1 || uiSettings.indicatorStyle == 4) {
             CompactPageIndicator(
                 count = groups.size,
@@ -181,41 +210,38 @@ private fun GroupIndicatorBar(
 ) {
     if (style == 1 || style == 2 || style == 4) return
 
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(26.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        itemsIndexed(groups) { index, group ->
-            val isSelected = index == selectedIndex
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .alpha(if (isSelected) 1f else 0.6f)
-                    .clickable { onGroupSelected(index) },
-                contentAlignment = Alignment.Center
-            ) {
-                if (style == 3) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 22.dp, height = 3.dp)
-                            .background(
-                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(2.dp)
-                            )
-                    )
-                } else {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            itemsIndexed(groups) { index, group ->
+                val isSelected = index == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                        .clickable { onGroupSelected(index) },
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
                         text = group.name,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
+                        color = if (isSelected) Color(0xFF6200EE) else Color.DarkGray,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.LightGray.copy(alpha = 0.5f))
+        )
     }
 }
 
@@ -228,15 +254,17 @@ private fun SymbolPageGrid(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(symbolsPerRow.coerceIn(1, 20)),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 4.dp),
         contentPadding = PaddingValues(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(items) { item ->
             Box(
                 modifier = Modifier
-                    .height(28.dp)
+                    .height(36.dp)
                     .combinedClickable(
                         onClick = { onSymbolClicked(item, false) },
                         onLongClick = {
@@ -249,7 +277,8 @@ private fun SymbolPageGrid(
             ) {
                 Text(
                     text = item.display,
-                    fontSize = textSizeSp.sp,
+                    fontSize = if (textSizeSp > 0) textSizeSp.sp else 16.sp,
+                    color = Color(0xFF333333),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -268,7 +297,7 @@ private fun CompactPageIndicator(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(14.dp),
+            .height(16.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -279,9 +308,8 @@ private fun CompactPageIndicator(
                 modifier = Modifier
                     .padding(horizontal = 3.dp)
                     .size(size)
-                    .alpha(if (isSelected) 1f else 0.55f)
                     .background(
-                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                        color = if (isSelected) Color(0xFF6200EE) else Color.Gray.copy(alpha = 0.4f),
                         shape = if (style == 1) RoundedCornerShape(percent = 50) else RoundedCornerShape(1.dp)
                     )
                     .clickable { onPageSelected(index) }
