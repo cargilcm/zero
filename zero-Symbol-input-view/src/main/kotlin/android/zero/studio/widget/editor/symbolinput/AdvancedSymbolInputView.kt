@@ -40,7 +40,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : AbstractComposeView(context, attrs, defStyleAttr) {
 
-    private var groupsState by mutableStateOf<List<SymbolGroup>>(SymbolDefaults.createFallbackGroups())[cite: 5]
+    private var groupsState by mutableStateOf<List<SymbolGroup>>(SymbolDefaults.createFallbackGroups())
     private var uiSettingsState by mutableStateOf(SymbolUiSettings())
 
     var editor: CodeEditor? = null
