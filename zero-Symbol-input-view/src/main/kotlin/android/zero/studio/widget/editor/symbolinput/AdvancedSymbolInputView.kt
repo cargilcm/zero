@@ -25,16 +25,14 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
-// Import the appropriate CodeEditor class in your project, e.g.:
 import io.github.rosemoe.sora.widget.CodeEditor
+import kotlinx.coroutines.launch
 
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
@@ -42,13 +40,33 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : AbstractComposeView(context, attrs, defStyleAttr) {
 
-    // Change type from Any? to CodeEditor?
+    private var groupsState by mutableStateOf<List<SymbolGroup>>(SymbolDefaults.createFallbackGroups())[cite: 5]
+    private var uiSettingsState by mutableStateOf(SymbolUiSettings())
+
     var editor: CodeEditor? = null
         private set
+
+    var onOpenManagerListener: (() -> Unit)? = null
 
     fun bindEditor(editor: Any?) {
         this.editor = editor as? CodeEditor
     }
+
+    fun setGroups(groups: List<SymbolGroup>) {
+        if (groups.isNotEmpty()) {
+            this.groupsState = groups
+        }
+    }
+
+    fun setUiSettings(settings: SymbolUiSettings) {
+        this.uiSettingsState = settings
+    }
+
+    fun refreshData() {
+        // Re-composition triggers automatically on state update
+    }
+
+    fun onHostResume() {}
 
     @Composable
     override fun Content() {
@@ -73,23 +91,6 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
         }
     }
 }
-    fun setGroups(groups: List<SymbolGroup>) {
-        if (groups.isNotEmpty()) {
-            this.groupsState = groups
-        }
-    }
-
-    fun setUiSettings(settings: SymbolUiSettings) {
-        this.uiSettingsState = settings
-    }
-
-    fun refreshData() {
-        // Re-composition triggers automatically on state update
-    }
-
-    fun onHostResume() {}
-
-    
 
 @Composable
 fun AdvancedSymbolInputToolbar(
