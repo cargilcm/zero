@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+// Import the appropriate CodeEditor class in your project, e.g.:
+import io.github.rosemoe.sora.widget.CodeEditor
 
 class AdvancedSymbolInputView @JvmOverloads constructor(
     context: Context,
@@ -40,19 +42,37 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : AbstractComposeView(context, attrs, defStyleAttr) {
 
-    // Default groups populated from SymbolDefaults.createFallbackGroups()
-    private var groupsState by mutableStateOf<List<SymbolGroup>>(SymbolDefaults.createFallbackGroups())
-    private var uiSettingsState by mutableStateOf(SymbolUiSettings())
-
-    var editor: Any? = null
+    // Change type from Any? to CodeEditor?
+    var editor: CodeEditor? = null
         private set
 
-    var onOpenManagerListener: (() -> Unit)? = null
-
     fun bindEditor(editor: Any?) {
-        this.editor = editor
+        this.editor = editor as? CodeEditor
     }
 
+    @Composable
+    override fun Content() {
+        MaterialTheme(colorScheme = darkColorScheme(surface = Color(0xFFF9F6F0))) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFAF7F2)
+            ) {
+                AdvancedSymbolInputToolbar(
+                    groups = groupsState,
+                    uiSettings = uiSettingsState,
+                    onSymbolClicked = { item, isLong ->
+                        val action = if (isLong) item.longAction else item.shortAction
+                        val text = if (isLong) item.longText else item.shortText
+
+                        editor?.let { ed ->
+                            SymbolActionExecutor.execute(ed, action ?: 0, text, onOpenManagerListener)
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
     fun setGroups(groups: List<SymbolGroup>) {
         if (groups.isNotEmpty()) {
             this.groupsState = groups
