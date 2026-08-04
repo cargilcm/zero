@@ -40,39 +40,14 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : AbstractComposeView(context, attrs, defStyleAttr) {
 
-    // Default symbols to populate immediately if non-empty lists aren't passed yet
-    private val defaultSymbols = listOf(
-        SymbolItem("←", shortText = "←"), SymbolItem("↑", shortText = "↑"),
-        SymbolItem("→", shortText = "→"), SymbolItem("⇥", shortText = "\t"),
-        SymbolItem("'", shortText = "'"), SymbolItem(".", shortText = "."),
-        SymbolItem(",", shortText = ","), SymbolItem("/", shortText = "/"),
-        SymbolItem("//", shortText = "//"), SymbolItem("↓", shortText = "↓"),
-        SymbolItem(":", shortText = ":"), SymbolItem(";", shortText = ";"),
-        SymbolItem("#", shortText = "#"), SymbolItem("+", shortText = "+"),
-        SymbolItem("-", shortText = "-"), SymbolItem("*", shortText = "*"),
-        SymbolItem("=", shortText = "="), SymbolItem("|", shortText = "|"),
-        SymbolItem("_", shortText = "_"), SymbolItem("(", shortText = "("),
-        SymbolItem(")", shortText = ")"), SymbolItem("\"", shortText = "\""),
-        SymbolItem("'", shortText = "'"), SymbolItem("{", shortText = "{"),
-        SymbolItem("}", shortText = "}"), SymbolItem("(", shortText = "("),
-        SymbolItem(")", shortText = ")"), SymbolItem("[", shortText = "["),
-        SymbolItem("]", shortText = "]"), SymbolItem("<", shortText = "<"),
-        SymbolItem(">", shortText = ">"), SymbolItem("\\", shortText = "\\"),
-        SymbolItem("$", shortText = "$"), SymbolItem("&", shortText = "&"),
-        SymbolItem("/*", shortText = "/*"), SymbolItem("*/", shortText = "*/"),
-        SymbolItem("settings", shortText = "")
-    )
-
-    private var groupsState by mutableStateOf(
-        listOf(SymbolGroup("commonlyUsed", defaultSymbols))
-    )
+    // Default groups populated from SymbolDefaults.createFallbackGroups()
+    private var groupsState by mutableStateOf<List<SymbolGroup>>(SymbolDefaults.createFallbackGroups())
     private var uiSettingsState by mutableStateOf(SymbolUiSettings())
 
     var editor: Any? = null
         private set
 
     var onOpenManagerListener: (() -> Unit)? = null
-    var onSymbolClickListener: ((SymbolItem, Boolean) -> Unit)? = null
 
     fun bindEditor(editor: Any?) {
         this.editor = editor
@@ -105,10 +80,11 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
                     groups = groupsState,
                     uiSettings = uiSettingsState,
                     onSymbolClicked = { item, isLong ->
-                        if (item.display == "settings") {
-                            onOpenManagerListener?.invoke()
-                        } else {
-                            onSymbolClickListener?.invoke(item, isLong)
+                        val action = if (isLong) item.longAction else item.shortAction
+                        val text = if (isLong) item.longText else item.shortText
+
+                        editor?.let { ed ->
+                            SymbolActionExecutor.execute(ed, action ?: 0, text, onOpenManagerListener)
                         }
                     }
                 )
@@ -268,7 +244,7 @@ private fun SymbolPageGrid(
                     .combinedClickable(
                         onClick = { onSymbolClicked(item, false) },
                         onLongClick = {
-                            if (item.longAction != null) {
+                            if (item.longAction != null || item.longText != null) {
                                 onSymbolClicked(item, true)
                             }
                         }
