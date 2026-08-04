@@ -89,29 +89,7 @@ class AdvancedSymbolInputView @JvmOverloads constructor(
 
     fun onHostResume() {}
 
-    @Composable
-    override fun Content() {
-        MaterialTheme(colorScheme = darkColorScheme(surface = Color(0xFFF9F6F0))) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFFFAF7F2)
-            ) {
-                AdvancedSymbolInputToolbar(
-                    groups = groupsState,
-                    uiSettings = uiSettingsState,
-                    onSymbolClicked = { item, isLong ->
-                        val action = if (isLong) item.longAction else item.shortAction
-                        val text = if (isLong) item.longText else item.shortText
-
-                        editor?.let { ed ->
-                            SymbolActionExecutor.execute(ed, action ?: 0, text, onOpenManagerListener)
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
+    
 
 @Composable
 fun AdvancedSymbolInputToolbar(
